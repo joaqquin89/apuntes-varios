@@ -1,0 +1,1317 @@
+Masternode
+
+master node en kibernetes permite correr varios servidores y manejar procesos del cluster.
+en el fondo se basan en 3 componentes kube-apiserver , kube-scheduler y etcd.
+como el software tambien ha madurado , se crearon nuevos coponentes como el cloud-controller-amanger
+este maneja tareas una vez que el kube-controller manager interactua con otras herramientas como 
+rancher o digitalocen.
+
+kube-api-server:
+esta es el centro de las operaciones en kubernetes , por que todas las llamadas vienen via kube-apiserver.
+este componente es el unico que puede tener conexion con etcd's, tambien esta api valida y configura datos
+para los objetos creados
+
+ojo yo no necesitaria kubectl para llamar al kube-api-server, simplemente con el hehco de hacer lo siguiente
+curl -X POST /api/v1/namespaces/default/pods ... , lo que hace ese simple post es pasar por las fases de autenticacion
+de usuario , validacion del request , devuelta de data y etcd(en caso de tener que actualizar algo... todos esos pasos 
+haria el kube-api-server en caso de querer crear un pod por ejemplo)
+
+ojo no todos los componentes en  kubernetes (controller-manager , kube-scheduler , kubelet , kube-proxy, kube-apiserver)
+deben de tener la misma version , por ejemplo si el kube-apiserver tiene una version X , el controller-manager y el kube-scheduler
+pueden tener una version X-1 y el kubelet mas el kube-proxy pueden tener hasta dos versiones anteriores(X-2)
+
+
+kube-scheduler:
+usa un algoritmo determinado en el cual dertemina en cual nodo va a hostear el pod.
+para programar los nodos ocupando este algoritmo va ver los recursos disponibles con el fin
+de saber en donde programar el pod (ojo este algoritmo lo podemos customizar ).
+tambien puedo hacer bind de un pod a un nodo especifico (taints and tolerations)
+
+etcd:
+etc es un key value-store distribuido. guarda el estado del cluster (o sea cuando queremos persistir el eestado
+de un deployment, nodos, configs, secrets , roles, bindings ,etcs .... es aca en donde nosotros lo vamos a hacer)
+
+cuando existen solicitudes http simulataneas (que viajan en el kubeapi-server), la primera solicitud actualiza la base de datos
+en la segunda solicitud devuelve un codigo 409(error) al solicitante.
+
+etcd funciona dejando una base de datos master y las otras son replicas.
+entre ellas se cominican para definir quien seria el master en caso de falla
+
+** ojo etcd ocupa el puerto 2379
+yo podria instalar de manera manual el etcd descargando un archhivo.tar.gz.
+primero deberia configurar los certificados , un opcino es tener que instalar en un solo nodo un demonio y configurar el servicio
+como advertise client.
+
+kube-controller-manager
+
+es un loop daeomn que va interactuando con el kube-apiserver para determinar el estado del cluster.
+en caso de que el estado no hace match con el estado deseado el manager va a contactar al controller
+necesario , con el fin de que el estaso sea el deseado.
+atenemos muchos controller manager.
+
+la idea de tener un kube-controller-manager es poder dividir el trabajo y sus funciones son observar el estado
+y en caso de que dicho estado no sea el deseado remediar la situacion (llevando todo el sistema al estado 
+deseado) ejemplo, el node-controller lleva el monitoreo del estado deseado de los nodos y toma las acciones necesarias
+en caso de que algo ocurra
+
+tamien tenemos los cloud-controller-manager que interactua con los agentes fuera del cloud.
+(esto ya es externo la idea es alivianar la pega) , un ejemplo de cloud controller manager , es cuando nosotros
+generamos un balanceador de capa 7 para exponer el servicio.
+
+cuando nosotros creamos un cluster el kube-controller-manager es deployado como un pod en el namespace de kube-system.
+
+
+WORKER NODES
+
+corren kubelet y kubeproxy principalmente , tambien se deployan otros tipos de deamons para proveer otros servicios
+como monitoreo.
+
+kubeelet es el encargado de correr los contenedores en los nodos y se asegura que los contenedores efectivamente existen
+corriendo , por otro lado el kube-proxy es el encargado de manejar la conectividad entre containers,
+esto lo hace ocupando entradas iptables.
+
+supervisord es una herramnienta muy liviada que monitorea ambientes tradicionales de linux y notifica sobre esos procesos.
+en un cluster este demonio puede monitorear el proceso kubelet y docker, en caso de que fallen los procesos va a intentar
+reiniciarlos.
+
+kubelet
+
+agente que se encuentra en los wordkers que acepta llamadas de api. este va a trabajar en configurar el nodo local
+hasta la especificacion se ha cumplido.
+
+un pod puede requerir , secretos , configmaps , storage etc... y este componente es quien se asegura de que
+el pod tenga todo lo que necesita (kubelet tambien envia los estaduso via kube-apiserver al master , el cual
+va a guardar este estado en el etcd)
+
+en otras palabras es el capitan que dirige todo lo que pasa en el nodo (es un ministro de fe para los masters).
+ojo si ocupo kubeadm para levantar un cluster, el kubelet no es deployado
+
+servicios
+
+la idea en k8s de ocupar servicios es desacoplar la logica de negocio (0el contenedor con la funcionalidad) y el acceso
+a este.
+
+a nivel de red el pod contiene un contenedor con una app pero tambien tendra un contenedor en pausa que es el 
+encrcado de reservar la ip address en el namespace , priorizando esa ip en caso de que  se creen otros contenedores
+
+Controllers
+
+son muy importantes ya que nos permite llevar nuestors objetosdel cluster a un estado deseado.
+en palabras muy resumidas un controlador es un afente o informador.
+
+pods 
+
+otro punto importante en el cluster kubernetes por que es la unicad minima en kubernetes.
+la idea de un pod es tener un contenedor (y por ende un microservicio) por pod
+
+los contenedores en un pod son inicados en paralelos , como el resultado no hya una manera determinar cual contenedor
+inicia primero y cual inicia despues. el uso de "InitContainer" puede ordenar inicar hasta cierto puento.
+para soportar un proceso simple corriendo en un contenedor ,  puedes necesitar logging , proxy , etcs y esas tareeas
+estan soportadas en el ismo pod
+
+containers 
+
+kubernetes no permite manejar directamente a nivel de contenedor , pero si en kubernetes nosotros podemos manejar
+los recursos que estos contenedores consumen.
+en la resource section en el PodSpec yo puedo darle liimintes de cpy y memoria al containers
+
+otra manera de usar recursos en los containers es crear un resource quota object , cual permite establecer liimiites
+duros y blandos.
+
+init containers
+
+liveleness probes , readiness probes y statefulsets pueden ser usados para determinar el orden en que un contenedor
+va a iniciar.
+
+ojo si el init container falla , el contenedor se va a reiniciar en el pod.
+
+API CALL FLOW
+
+uno como usuario primero va a pegarle al api (kube-apiserver) , el cual va a ir a consultar
+el estado del cluster al etcd , el etcd response al kube-apiserver ,imaginemos que en este caso nosotros queremos
+crear un nuevo pod ok ? entonces el kube-apiserver le va a pegar al kube-controller-manager el cual va a llamar
+al controller de pod para poder crear este nuevo pod.
+(acordemonos que el kube-controller-manager es un loop el cual va buscando que el cluster este en un
+desireded state).
+luego este kube-controller-manager va a enviar el estado deseado al kube-apiserver el cual va a ir a al kube-scheduler
+para eliminar o crear un nuevo recurso, entonces al scheduler nosotros decimos ua hay que crear un nuevo pod y el scheduler
+va a decidir en que nodo va a agendare el pod.
+luego este reenvia la respuesta de donde agendar el pod al kube-apiserver el cual va a enviar a kubelet y kube-proxy
+kubelet se va a comunicar con el container runtime(docker o / cri-o),  una vez que los contenedores esten corriendo
+kube proxy me va a permitir comunicar loz contenedores entres distintos ns a traves de fw rules
+
+node
+
+un nodo es un api object creado para representar una instancia del cluster(los nodos pueden ser
+linux o  microsoft server2019).
+
+si el kube-apiserver no se puede comunicar con el nodo ppor 5 minutos el nodelease va a programar el nodo para
+eliminarlo y el nodestatus cambiara a listo.los pods son desalojados una vex que la conexion es restablecida.
+en cada nodos existe un kube-node-lease namespaces.
+
+este pod time es dado por el pod- eviction (de aca se dan los 5 min default)
+
+usando kubectl delete node <NODENAME> , elimino el nodo desde el api server
+
+
+
+NETWORKING EN KUBERNETES 
+
+Comunicacion de pods
+
+segun la grafica que muestran en el curso tenemos dos contenedores en un mismo pod(por lo general
+esto no pasa), podriamos ver un contenedor en pause dentro del mismo pod el cual es el encargado de obtener una ip
+los contenedores en un mismo pod comprarten network, volumenes , secretos, enviromenment variables.
+
+para comunicarse con otros contenedores dentro del mismo pod , pueden ocupar la interfaz loopback , escribir files
+en un filesystem comun o comunicacion via IPC existe un plugin que permite multiples ip address per pod.
+
+la comunicacion entre pods en cualquier sistema de orquestacion tiene que cumplir:
+
+- comunicacion container-to-container.
+- comunicacion pod-to-pod
+- comunicacion desde el exterior al pod.
+
+cni config file.
+
+un cni no es mas que una especificacion asociada a librerias de como voy a comunicar contenedores y remover recursos
+determinados cuando el contenedor es eliminado.
+los cni son agnosticos a los lenguajes y hay distintos plugins para aws ecs , cloud froundry.
+
+mientas que un cni plugin puede ser usado para configurar la network de un pod y proveed una ip por pod
+cni no ayuda a la comunicacion pod-to-pod a lo largos de los nodos.
+
+k8s ocupa los siguientes requerimientos:
+
+todos los pods se pueden comunicar con otros a lo largos de los nodos
+todos los nodos se pueden comunicar con todos los pods
+no se puede ocupar nat
+
+este punto de no ocupar nat puede ser logrado en una infraestructura fisica , pero tambien puede ser logrado
+con soluciones como weave , flannel, calico, romana
+
+LABS:
+
+
+lab1:
+
+con este comando kubectl create deployment hog --image vish/stress , yo puedo crear un deployment que me
+sirve para hacer pruebas de stress, la idea en este laboratorio fue ocupar este deployment para ver como se comporta
+el cluster k8s a nivel de limites de recursos.
+
+lab2
+
+la idea en este laboratorio es dar limites a los ns,  una vez que aplicamos limites , este tiene que ser a un namespace
+especifico como por ejemplo "kubectl --namespace=low-usage-limit create -f low-resource-range.yaml" (aca ocupamos este 
+low-resource-range.yaml que asocio ciertos limites de cpu y ram a los Namespace).
+de esta forma verifico  kubectl get LimitRange --all-namespaces.
+
+ojo cuando nosotros anadimos quotas a los namespaces y lanzamos un deployment , los pods del deployment van a quedar
+por default con los mismos valores minimos y maximos de la quota que lanzamos.
+
+ahora en el laboratorio lanzamos un segundo deployment en el mismo namespace (con las quotas que le anadimos previamente).
+con la misma imagen y las mismas condiciones. lo mas probable es que este nuevo deployment se va a programar en un nodo que
+no tenga ningun tipo de workload con esta imagen de stresss.
+
+lab 3
+
+la idea es mantener los nodos
+
+con el siguiente comando puedo deshalojar a los pods del nodo lfs458-worker
+
+kubectl drain lfs458-worker --ignore-daemonsets --delete-local-data
+
+la idea de este lab es ocupar los conceptos de cordon e uncordon que vi en la ceritficacion de ranchher.
+lo que hace el comando drain es generar un taint al nodo con el valor node.kubernetes.io/unschedulable:NoSchedule
+
+con el comando kubectl uncordon lfs458-worker lo que hace es quitarle el taint generado
+
+
+######### APIs EN KUBERNETES #######
+
+api accesss
+
+kubernetes tiene una arquitectura full api-driven, sabiendo donde encontrar los endpoints de los recursos y entendiendo
+como el api cambia entre las versiones.
+
+en el fondo la arquitectura de kubernetes, todo pasa por el kube-apiserver(o sea el es el que canaliza las consultas)
+usando un curl query puedo exponer los grupos API actuales.
+
+RESTful
+
+kubernetes contruye las llamas a las apis en tu favor , respondiendo con los verbos http(get,post,delete).
+tu puedes tambien construir llamas desde curl o de otros programas (postman)
+en el siguiente ejemplo
+
+curl --cert userbob.pem --key userBob-key.pem --cacert /path/to/ca.pem https://k8sServer:6443/api/v1/pods
+
+con los certificados y keys apropiadas tu puedes construir los requests
+
+checking access
+
+para tener mas detalles sobre lo que puedo hacer y no hacer , en este caso yo voy a tener un usuario llamado bob 
+con esta query  kubectl auth can-i create deployments --as bob yo estoy preguntando si bob puede crear deployments
+en el namespace default o este otro kubectl auth can-i create deployments --as bob --namespace developer si bob puede
+crear deployments en el namespace developer
+
+tambien puedo preguntar kubectl auth can-i create deployments, si mi usuario configurado en mi config del .kube
+puede crear deployments
+
+hay actualemente 3 API's cuales pueden ser aplicadas para setear quien y que pueden consultar.
+
+SelfSubjectAccessReview​
+
+revision de accesos para cualquier usuario
+
+LocalSubjectAccessReview
+
+revision restringida a ns especifico(por ejemnplo las quotas)
+
+SelfSubjectRulesReview
+
+una revision que muestra acciones permitidas por un usuario dentro de un namespace especifico
+
+Optimistic Concurrency
+
+en kubernetes cuando llamamos a las api's siempre esta llamada tiene que ser en formato json
+
+AnnOTATION
+
+En kubernetes los label trabajan con objetos o colecciones de objetos en su lugar las anotaciones (o los annotations)
+permiten que la metadata sea incluida en un objeto , esto puede ser util fuera de la interaccion del objeto kubernetes
+(acordemonos de los ingress), igual que los labels son mapas clave valor que pueden contener informacion legibles
+por nosotros
+
+como sabes los labels me permiten identificar y seleccionar objetos a diferencia de las anotaciones con los metadatos 
+yo no puedo hacer estas cosas.
+pero con los annotations y metadata lo que puedo hacer es enriquecer el objeto (por ejemplo cuando
+)
+
+K8S manage api resources
+
+kubernetes expone los recursos via RESTful API calls ok ? cual puede ser manejado por http , json o xml, la manera
+tipica de manejar esto es HTTTP (incluso el estado de estos recurso puede ser cambiado ocupando los verbos http standart)
+
+inclso cuando ocupo kubectl lo que hago es manejar los objetos kubernetes ocupando la api (si yo quisiera podria llegar
+a ocupa curl y tendria el mismo efecto que kubectl)
+
+con kubectl puedo darle un level y de esa forma podria obtener una salida clara ejemplo: 
+
+kubectl --v=10  get pods -n deploy-example-ns (ojo el verbosity mode puede ir desde 0 a 10) y con esa opcion me muestra
+todo el output que tiene kubectl al momento de pegarle al api kubernetes para objetenr un estado por ejemplo
+(es como que si hiciera un curl -vvv y de esa forma)
+
+con este comando "kubectl config view" yo puedo ver la informacion basica por lado del servidor , sin un certificado
+de autoridad, key y certidicado desde el file .kube/config  solo podria ocupar curl inseguros(o sea ocupar http)
+cual no va a exponer mucho debido a las security settings.
+
+
+explicacion ~/.kube/config
+
+Api version: como con los otros objetos esta version le da la instruccion al kube-apiserver donde asignar los datos
+clusters:  contiene el nombre del cluster y tambien donde se van a enviar las llamadas api , el certificate-authority-data
+            se pasa en esta seccion para autenticar el curl request(es la key que me sirve para autenticar).
+
+contexts: esta es una configuracion que permite facil acceso a multiples clusters como muchos usuario (imaginemos que en un cluster
+            soy admin pero en otro soy solo invitado) esto puede ser ocupado para setear namespaces user y cluster
+
+current-context:  este muestra cual es el cluster el cual yo estoy manejando con el comando kubectl.
+kind: cada objeto en kubernetes tiene que tener un kind en este caso como es un archivo de configuracion 
+      el kind es config
+
+users: un nickname asociado al client credentials cual puede ser un cliente y un certificado o una password.
+        esto puede ser configurado via kubectl ocupando el siguiente comando (kubectl config set-credentials)
+
+namespaces
+
+este termino es usado para referenciar dos cosas , un kernel feature y una segregacion de api objets en kubernetes
+
+en kubernetes la segregacion de objetos significa los distinso objetos k8s (deployment, pods, etc) que tengo en
+distintas separaciones logicas
+
+cuando nos referimos a una separacion de kernel , este segrega los recursos de sistema intentando aislar multiples 
+grupos y los recursos tienen una quota.
+
+eventualmente el access control policies trabajara en ambos namespaces.
+
+kube-node-lease: mantiene informacion de los workker node lease
+kube-public: ns que puede ser leido por todos(inclusos los no autenticados), la informacion general del cluster
+            es a menudo incluida en este ns
+
+kube-system: contiene pods infraestructure
+
+para crear los opds en otro namespace diferente a default seria kubectl create -f file.yaml --namespace=<nombre>
+
+para crear una quota en el namespace podria ocupar el siguiente manifiesto:
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: quota-example
+  namespace: dev
+spec:
+    hard:
+      pods: "10"
+      requests.cpu: "4"
+      requests.memory:"5Gi
+      limits.cpu: "10"
+
+metodos adicionales
+
+tambien puedo ocupar un picante curl  como este
+
+curl --cert /tmp/client.pem --key /tmp/client-key.pem \ 
+--cacert /tmp/ca.pem -v -XGET \ 
+ https://10.128.0.3:6443/api/v1/namespaces/default/pods/firstpod/log
+
+ en donde tentiendo mi key, my cacert y mi cert podria sin ningun problema operar mi cluster
+
+ labs
+
+ lab 1
+
+ocupar curl con el fin de que hagamos el managment del cluster de  igual forma que con kubectl
+
+
+######### API OBJECTS #######
+
+en kubernetes tenemos 3 tipos de api's para definir nuestros objetos, por lo general empiezan a moverse desde
+las versiones alpha , pasando por beta y luego a v1 indicando que el objeto es estable.
+
+en esta parte del cyrso vamos a ver los daemonsts , statefullsets y deployments que han progresado hacia
+la estabilidad apps/v1. los jobs y cronjobs estan en batch/v1
+
+
+los rbac (esenciales para la seguridad) ha apsado desde v1alpha1 hacia un status mas stable (v1).
+
+
+v1 API GROUP
+
+los grupos de ls api v1 no son solo un grupo , si no una coleccion de grupos.
+por ejemplo en el grupo de apis v1 esta en grupo  storage.k8s.io/v1, rbac.authorization.k8s.io/v1
+
+como puedes ver no es un solo grupo es una coleccion de grupos.
+
+node: representa una maquinta virtual o fisica que forma parte del cluster k8s
+service account: el concepto de service account en kubernetes es similar al service account en google cloud, provee
+                 un identificador para que los procesos que estan corriendo en un pod puedan acceder al api server
+                 y realizar acciones autorizadas en ella
+
+
+
+descubriendo api groups
+
+nosotors podemos dar un vistazo rapido al output del estado actual de un api.
+cada uno de los valores pueden ser anadidos para ver detalles del grupo , por ejemplo profundizemos 
+detalles con los objetos incluidos en esta url https://localhost:6443/apis/apiregistrationk8s.io/v1beta1.
+
+el esta del request en esa url  es:
+
+$ curl https://localhost:6443/apis --header "Authorization: Bearer $token" -k
+
+{ 
+  "kind": "APIGroupList", 
+  "apiVersion": "v1", 
+  "groups": [ 
+    { 
+      "name": "apiregistration.k8s.io", 
+      "versions": [ 
+        { 
+          "groupVersion": "apiregistration.k8s.io/v1", 
+          "version": "v1" 
+        } 
+      ], 
+      "preferredVersion": { 
+        "groupVersion": "apiregistration.k8s.io/v1", 
+        "version": "v1" 
+      } 
+
+si el registro aparace dos veces , eso quiere decir que el de abajo es para el estado.
+otro oputput que puede aparecer como json es si este este objeto esta restringido a un namespace o a ninguno
+
+replicaset / replication controller
+
+la definicion del replication controller es la siguiente:
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: myapp-rc
+  labels:
+    app: myapp
+    type: front-end
+
+spec:
+    template:
+      metadata:
+        name: myapp-pod
+        labels:
+          app: myapp
+          type: front-end
+      spec:
+        containers:
+        - name: nginx-controller
+          image: nginx
+    replicas: 3
+
+demonos cuenta que tenemos dos metadata , en la primera metadata hago referencia al replication controller
+pero en el segundo lo que  yo hago es definir el pod 
+
+el replicaset las diferencias son las siguientes
+
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: myapp-replicaset
+  labels:
+    app: myapp
+    type: front-end
+
+spec:
+    template:
+      metadata:
+        name: myapp-pod
+        labels:
+          app: myapp
+          type: front-end
+      spec:
+        containers:
+        - name: nginx-controller
+          image: nginx
+    replicas: 3
+    selector:
+      matchLabels:
+          type: front-end
+
+esa es la gran diferencia entre los replica set y los replication controller , que los replicaset ocupan los selector
+al final , eso me permite tener el control de los pods que defini dentro del template como los pods que tiene ese label
+
+daemonsets
+
+imagina que tu quieres tener una aplicacion de logging en cada nodo. ok ? un daemon set es una muy buena opcion.
+el controller se asegura de que se va a correr un solo pod de un mismo tipo en cada nodo del cluster.
+cuando un nuevo nodo es anadido al cluster el mismo controller va a deployar este pod en el nuevo nodo.
+cuando un nodo es removido el deaemonset se asegura de que el pod is eliminado.
+
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: myapp-replicaset
+spec:
+    template:
+      metadata:
+        labels:
+          app: monitoring-agent
+      spec:
+        containers:
+        - name: monitoring-agent
+          image: monitoring-agent
+    selector:
+      matchLabels:
+          app: monitoring-agent
+
+
+statefullsets 
+
+la idea de este tipo de objetos kubernetes es implementar las apis que me permitan manejar apolicaciones
+(pods) que guarden estado ok ?
+los pods deployados son similares al pod specification qde los deployment entonces que es lo diferente ?
+que cada pod es considerado unico (esto signidficaa que cada pod tiene un orden y una identidad asociada).
+
+los statefullsets sirven para los sigueintes escenarios:
+
+identificadores de red estables y unicos
+almacenamiento persistente y estable
+despliegue ordenado y controlador
+actualizaciones en linea
+
+cuando ocupamos statefullsets la implementacion seria de esta manera: app-0,app-1,app-2 , etc y un pod no se va 
+a inicar hasta que el pod actual alcance un  estado de funcionamiento( no hay implementaciones en paralelo)
+
+Horizontal Pod Autoscalers (HPA)
+
+*** ojo este autoscalling pod hortizontal no se da automatico es un tipo de kubernetes que deberiamos deployar y conectarlo a un deployment
+especifico en otras palabras es un objeto de kubernetes.
+
+*** existe un grupo de apis llamada apiVersion: autoscaling/v2beta2 , en donde esta contenido este objeto HorizontalPodAutoscaler
+
+**** kubernetes ya trae un metric server y su endpoint es /apis/metrics.k8s.io/
+
+en el grupo de autoscalling nosotros vamos a encontrar el horizontal pod autoscallers (HPA), este es un recurso(objeto k8s)
+stable y los HPA's automaticamente escalan replication controllers, replica sets o deployments basados en un target de 
+utilizacion de cpu (por default es 50% de utilizacion ). ojo el horizontal pod autoscalling no puede ser aplicado
+a objetos que no se pueden escalar como por ejemplo un daemon set(en otras palabras el hpa nos permite variar el numero
+de pods desplegados en un replication controller o en un deployment en funcion de metricas).
+
+si lo llevamos a diagramar , el horizontal pod autoscaller trabaja como un control loop , eso significa que el control
+manager tiene un periodo de x tiempo en el cual va verificando la utilizacion de los recursos especificada en cada
+HorizontalPodAutoscaler definition. el control manager obtiene las metricas de cada recurso desde el resource metrics api
+o desde el custom metrics api.
+
+resource metrics api:
+
+no hay que configurar nada  y esta api es /apis/metrics.k8s.io/v1beta1/pods
+
+custom metrics:
+
+lo que hay en este tipo de metricas es un loop que comprueba si el hpa esta ok
+si ocupamos un cluster gke, eks o aks no podemos modificar este valor
+
+kubelet seria nuestro control manager el cual va verificando el estado de este hpa cada 30 segundos y obtiene la informacion 
+desde una llamada api (hacia el server metrics) cada un minuto.
+un pod deberia ser anadido o removido cada 180 segundos 
+
+cluster autoscaler (CA)
+
+aniad a incapacidad de deployar un pod o teniendo nodos con baja utilizacion
+por 10 minutos. esto permite minimizar los gastos para nodos utilizados.
+la aplicacion y reduccion de los nodos se verifica cada 10 segundos pero las desiciones se toman cada 10 minutos 
+
+jobs
+
+son parte de un batch api group , ellos estan usados para correr un numero de pods para completar una tarea(una tarea de batch)
+si un pod falla este sera reuiniciado hasta que se finalize el numero de finalizacion.
+
+un job puede tener uns especificacion de paralelismo y una key cuando se complete.
+el numero de paralelismo va a setear el numero de pods que pueden correr concurrentes y  el numero de finalizacion establecera
+cuantos pods deben ejecutarse correctamente para que el trabajo al terminar se encuentre como OK.
+muchos patrones de job pueden ser implementados es este grupo de apis como por ejemplo una cola tradicional.
+
+spec.concurrencyPolicy nos permite determinar como manejar los jobs cuando el segmento de tiempo expire.
+si seteamos allow(el default value ), se puede correr otro job de manera concurrente.
+si seteamos forbid el job actual continua y se omite un nuevo trabajo.
+si seteamos replace , cancela el actual job e inicia un nuevo job en su lugar
+
+*** ojo este proyecto resource-consumer lo que hace es exponer un monton de endpoints que tiene kubernetes en el 
+puerto 80
+
+Autorizaciones en kubernetes
+
+nosotros podemos autorizarnos de las sigueintes maneras:
+
+node authorizer: este tipo de autorizacion tiene un proposito de autorizar api's especificas para que kubelet le pueda hacer
+requests a esas apis, esto autoriza a el kubelet leer operaciones para servicios , nodos , ets
+
+abac (attribute-based access control): en este tipo de autorizacion lo que yo hago es autorizar accesos a ciertas api requests
+y las cmbino con abtributos , por ejemplo yo puedo hacer una policy especifica para un usuario especifico y para un objeto
+especifico.
+
+rbac(Role-Based access control): en general con rbac nosotros podemos garantizar el acceso a recursos basado en roles o en 
+usuarios individuales. en kubernetes podemos nosotros atachar diferentes roles como service accounts , users ,etcs.
+
+
+nosotros tenemos 4 recursos en el  siguiente grupo de apis rbac.authorization, estos 4 recursos son :
+
+    clusteRole: un clustrer role me permite dar los mismos permisos de un role pero a nivel de cluster
+    Role: con un role nosotros podemos dar accesoss a recursos en un namespace especifico
+    ClusterRoleBinding: esto nos da accesos a nivvel de cluster (o sea todos los namespaces)
+    RoleBinding: esto permite a nosotros dar accesos a los usuarios al mismo ns que un rol
+
+
+######### MANAINIG STATE WITH DEPLOYMENTS #######
+
+deployments
+
+los RC me permiten tener un numero pods especificos corriendo todo el tiempo (esa es su pega)
+pero el detalle que tienen es cuando queremos hacer actualizaciones (por lo general estas se hacen del lado
+del cliente), acordemonos que con los deployments yo puedo hacer un rollout para cambiar o actualizar 
+una version.
+
+la definicion deployments son similares a los replicasets excepto aue que el kind es deployment
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-replicaset
+  labels:
+    app: myapp
+    type: front-end
+
+spec:
+    selector:
+      matchLabels:
+          type: front-end
+    template:
+      metadata:
+        name: myapp-pod
+        labels:
+          app: myapp
+          type: front-end
+      spec:
+        containers:
+        - name: nginx-controller
+          image: nginx
+    replicas: 3
+
+
+ROLLOUT Y VERSIONING
+
+tenemos estrategias de deployment como por ejemplo si queremos actualizar la version de una imagen del contenedor.
+tendriamos que bajar todos los pods y recrearlos con esta nueva imagen , esa estrategia produce que la aplicacion se caiga
+eso es la estrategia de recreate
+
+por otro lado tenemos rolling update y en dicha estrategia , lo que nosotros hacemos es eliminar los pods de un cierto grupo
+y volver a recrearlos , con el fin de que la app no se caiga totalmente (esta ers la estrategia por default).
+
+objects relationship
+
+en un cluster kubernetes nosotros tenemos distintos controladores que no son mas que un loop infinito que
+miran si el correspondiente objeto se encuentr en el estado deseado.
+cada uno de estos controller le pregunta al kube-apiserver sobre el objeto que quieren trackear , como por ejemplo
+el controller manager de un deployment va preguntando si el deploy esta ok o si cagaron unas replicas.
+
+kubernetes no maneja directamente el estado del contenedor (acordemonos que kubernetes tiene objeto minimo los pods).
+en su lugar lo que hace , el kubelet le va preguntando al container engines cual es el estado actual(este container engines
+puede ser docker o cri-o), kubernetes lo que hace es comparar el pod spec con la informacion del container engine.
+
+
+deployment configuration spec
+
+spec: declaracion de los items siguientes que van a ser configurados.
+progressDeadlineSeconds: timepo en segundos , hasta que se informa un error de progreso , las razones
+pueden ser quotas o problemas de imagenes.
+revisionHistoryLimit: cuantas especificaciones de replicaset van a retener para el rollback.
+selector: define como el deployment va a identificar a los pods que el debe gestionar.
+template: datos pasados al replicaser para determinar como deployar el objeto.
+terminationGracePeriodSeconds: cantidad de tiempo que va a esperar un SIGTERM hasta correr un SIGKILL.
+
+*** la diferencia entre replicaset y replication controller es solo que el replicaset puede ocupar los labels
+y enc aso de que nosotros no queramos actualizar  el contenedor , nos conviene ocupar replicasets si no lo mejor es ocupar deployments
+
+
+######### SERVICES IN KUBERNETES #######
+
+***en resumidas cuentas un servios no es mas que una forma en la cual yo declaro politicas de accesos a los pods.
+
+como hemos habalado en kubernetes la idea es tener todo desacoplado entre si , con el fin de que si algo se reinicia
+no afecte a otros componentes ,esa es la idea de tener servicios dessacoplados con los pods , con el fin de que si un pod
+se reinicia no afecte otros componentes(pieza importantes en kubernetes son los servicios)
+
+google ha estado trabajando en extensible service proxy(ESP), basado en nginx HTTP reverse proxy, para proveer mas flexibilidad.
+servicios en kubernetes me sirven para exponer el pod ya sea dentro o fuera del cluster.
+
+en cada worker hay un kube-proxy agente que va mirando el kube-api para ver si existen nuevos servicios en cada node.
+esto abre puertos randoms y escucha y redirecciona el trafico hacia un service endpoint.
+
+SERVICE UPDATE PATTERN
+
+los labels son pieza importante para determinar que pod puede o no recibir trafico. pero como hemos aprendido
+los labels pueden ser actualizados dinamicamente y pueden afectar a aquellos pods que van a continuar dando el servicio.
+
+deberian haber una diferencia en las aplicaciones deployadas como cuales , clientes que tendrian problemas de comunicacion
+con diferentes versiones, la idea de tener etiqueras es para cuando un deployment vuelve a recrear un contenedor este no pierda
+la capacidad de dar servicio.
+
+ACCESSING AN APPLICATION WITH A SERVICE
+
+El targetport es un puerto default pero podria ser seteado con cualquier valor , este puerto vendria a ser el puerto
+en donde el servicio va a "exponer el servicio".
+
+el puerto es el valor en donde el servicio va a querer llegar.
+
+el comando kubectl expose lo que hace es crear un servicio con un nombre especifico para un deployment ejemplo:
+
+kubectl expose deployment/nginx --port=80 --type=NodePort
+
+debe ser pasado un port y un target port (este es de tintes mas opcionales), el target port  podria setear cualquier valor.
+en cada pod podria tener un puerto diferente pero el trafico es pasado via labels.
+
+WORKFLOW DEL DIAGRAMA DE servicio
+
+El kube-proxy se encuentra corriendo en todos los nodos  worker del cluster, este presenta una especie de red ip virtual
+para alocar a los servicios distinos que external name (clusterip, nodeport, loadbalancer).
+
+cuando se ocupa el iptables en proxy mode,  el kube-proxy continua monitoreando el api server para observar si hay cambio en los services
+y endpoint objects en caso de haberlo va actualizando (removiendo o creando).
+
+Este tipo de configuracion soporta alrededor de 5000 nodos , asumiento multiples servios y pods por nodos, esto lleva
+a un cuello de botella en el kernel
+
+cuando kubeproxy se encuentra en ipvs mode(esta en fase beta) , este trabaja en el kernel space anadiedo mas velocidad
+y permite configurar un load-balancing algorithm como round robbin , menor delay , etcs.
+
+esto puede ser bien util cuando tenemos cluster gigantes que tienen mucho mas de 5000 nodos , este modo asume que el ipvs 
+kernel module esta instalado y estan ejecutados antes que el kube-proxy.
+
+el kube proxy mode esta configurado via flag durante la inicializacion del cluster.
+el kube-proxy es deployado como daemonset en cada uno de los workers y al parecer tambien deploya pods(
+  incluso si yo hago un kubectl get pods -n kube-system podria ver pods corriendo
+)
+
+######### VOLUMES IN KUBERNETES #######
+
+los contenedores por default no ofrecen la capacidad de tener storage, eso implica que si el contenedor se cae o se reinicia
+o simplemente yo lo elimino pierdo toda la data. por eso aparecieron los volumenes en kubernetes.
+todo container dentro de un pod comparte los volumenes .
+
+un volumen no es ni mas ni menos que un directorio, nosotros tenemos 27 diferentes tipos de cvolumenes en kubernetes
+(NFS, ROOK , PVC-PV, gcePersistenDisk, etc).
+
+la adopcion de Container Storage Interface(CSI), permite el objetivo de una interfaz estandar para la industria de orquestacion
+de contenedores. la idea de tener los csi es poder dar la flexibilidad y desacoplar plugins  sin necesidad de tener
+que editar el codigo de kiubernetes
+
+
+INTRODUCING VOLUMES
+
+todos los conenedores en un pod pueden tener acceso a un volumen en comun, esto significa que el volumen puede ser un 
+metodo de comunicacion container-to-container ok ? pero estambien significa que puede haber data corrupta en este volumen
+por que cada contenedor va a tener un modo de acceso para escribir en el contenedor.
+
+existen 3 tipos de modos de accesos:
+
+ReadWriteOnce, que permite lectura y escritura por un solo nodo
+ReadOnlyMany, que permite solo lectura por varios nodos
+ReadWriteMany, que permite la lectura y escritura de muchos nodos.
+
+esto significa que si tengo 2 pods en un mismo nodo con el modo de acceso read-write-one , ambos pods pueden escribir
+en el volumen pero si tengo un 3 pod en un nodo aparte no podria escribir.
+
+cando se solivcita un volumen en kubernetes , kubelet ocupa el script kubelet_pods.go , este script en pocas palabras
+es quien me crea el punto de montaje en el contenedor , crea un enlace simbolico para asociar un archivo al contenedor.
+
+el kube-api-server es quien va a realizar la solicitus de almacenamiento si se ocupo StorageClass(esto depende del backend).
+en caso de que no se ocupo Storage class, los unicos parametros a utilizar seran el modo de accesso y el tamanio
+
+VOLUME spec
+
+unno de los muchos typos de storage es el emptyDir. en este tipo de storage , kubelet va a crear un directorio en el contenedor
+pero no va a crear ningun puto de montaje. la data escrita en este storage puede ser borrada cuando se destruya el contenedor
+
+VOLUME TYPES
+
+tenemos muchos tipos de volumenes , pero los mas comunes serian:
+en caso de ocupar Google cloud podria ocupar GCEpersistentDisk o en caso de ocupar aws , tendria awsElasticBlockStore.
+cuales permiten montar GCE O EBS disks en los pods.
+
+hostPath lo que hace es crear un punto de montaje en el filesystem del nodo, este recuorso puede ser un directorio.
+NFS (ya lo he ocupado0)
+
+rbd , cephfs o glustefs.
+
+PERSISTEN VOLUMES AND PVC
+
+Persisten volumes fases
+
+1.- provision: puede ser el aprovisionamiento creado desde un storage class o creado por el administrador(de manera estatica).
+2.- binding: esto ocurre cuando el control loop en el master detecta un PVC  con una cantidad de storage requerida.
+            en este proceso se localiza y se hace match con un pv especifico.
+3.- use: como su nombre lo dice , cuando el pv esta en uso.
+4.- release: esta fase ocurre cuando el pod se termina , elimmando el pvc, pero el pv sigue existiendo
+5.- reclaim: puede tener 3 opciones(estas opciones se dan cuando un volumen fue liberado).
+              retain mantiene la data intacta permitiendo al admin manejar el storage y la data
+              delete elimina la data y el storage
+
+PERSISTENT VOLUME
+
+cada tipo de volumen persistente tiene su propia configuracion, los persistent volumes no son objetos que tengan un namespace
+especifico a diferencia de un persistent volume claim que si.
+
+
+SECRETOS EN K8S
+un secreto no esta encripado solo esta codificadoa  base 64
+
+######### INGRESS IN KUBERNETES #######
+
+como nosotros hemos aprendido yo puedo exponer un servicoio de distintas maneras pero , ingress me permite exponer un servicio
+de una manera mas eficiente en vez de ocupar balanceadores o puertos.
+
+un ingress controller es bastante diferente ya que este no corre como parte de kube-controller-manager.
+tu puedes deployar muchos containers cada uno con una configuracion unica y el ingress controller va a controlar el ingreso
+a esos servicios (pero date cuenta que un ingress controller es la puerta de entrada... no es un objeto en looop que esta 
+buscando que hacer)
+
+en otras palrbras y de manera muy resumida , lo que hace un ingress es redirigir el trafico al servicio correspondiente.
+un ingress controller es un daemon que esta corriendo en un pod y en un ns especifico(ojo no necesariamente puede ser el kube-system)
+y que va mirando el endpoint /ingresses endpoint en el api server (o sea el master) cual esta bajo el api group networking.k8s.io/v1beta1
+con el fin de saber si se crea o no un nuevo endopoint , en caso de que se creo un nuevo endpoint , lo que hace este daemon es usar
+el set de reglas configuradas en el ingress las ocupa para permitir el trafico hacia un servicio(en su mayoria HTTTP)
+
+ISTIO EN KUBERNETES
+
+cuando quiero conexiones mas complejas como un service discovery , manejo de trafico y metricas , etc... yo podria ocupar un
+service mesh consiste en tener un contenedor (en cada pod) que haga de proxy  con el fin de manejar trafico basado en reglas
+desde el controlplane.
+
+componentes de istio:
+
+ENVOY : es el contenedor que se deploya en cada uno de los pod y hace funcionamiento de proxy.
+
+#########SCHEDULLER IN KUBERNETES##############
+
+Kube-scheduller es una parte importante en kubernetes ya que el administra y determina cual nodo va a ser en donde el
+pod va a correr.
+
+el scheduller hace seguimiento un conjunto de nodos en su cluster , luego estos nodos los va filtrando en funcion de labels
+y predicados. luego ocupa funciones de prioridad para determinar en que nodo se debe programar el pod.
+
+la desicion de esta programacion puede verse afectada por el uso de etiquetas en nodos o pods.
+tambien tenemos los taints, labels y pod-affinity los cuales me permiten configurar desde pod, en donde va a ir
+a parar dicho pod.
+
+pero ojo no todos los labels son drasticos , los affinity pueden alentar al pod a que sea deployado en un nodo A pero 
+tambien podria ser deployado en otro nodo en caso de que el nodo A no se encuentre disponible.
+
+algunas settings desalojaran los pods de un nodo si la condicion requerida no es verdadera como requiredDuringScheduling
+o RequiredDuringExecution
+
+el schedulling por default es en cada definicion de pod(manifiesto) hay un campo llamado nodeName que es empty(by default)
+en caso de que yo quiera asignar(o sea no scheduler) el pod a un nodo una vez que este se encuentre creado , ya no podria hacerlo
+(tendria que recrearlo el pod) , otra forma de ocupar el no scheduler es hacer un manifiesto con una definicion de binding
+
+LABELS Y SELECTORES
+
+Los labels serian una forma de catlogar mis pods y con los selector yo puedo seleccionar el tipo de objeto
+por ejemplo un label seria kind , class y color pero con selector yo voy a elegir solo los tipoc class=mammal
+
+ojo un punto de confusion es lo siguiente:
+
+los labels que se encuentran dentro de la metadata son los labels del objeto (por ejemplo replica set, pod , etc)
+en cambio los labels que se encuentran dentro del campo spec son los labels del pod
+
+los labels del objeto en si (por ejemplo un replicaset) , van a ser usardos si tu estabas configurando algun otro
+objeto para descubrir el replicaset
+
+para finalizar nosotros ocupamos los selectror y el matchLabels , con el fin de enlazar loos labels que tienen 
+los pods con respecto al objeto (en este caso erl replicaset)
+
+TAINTS Y TOLERATIONS
+
+ojo cuando aplico taints lo aplico a los pods y los tolerations se aplican a los pods
+para hacer taint a un nodo ocupo lo siguiente
+kubectl taint nodes node-name key=value:taint-effect ,en este caso el taint efect es quien determina que va a pasar
+con los pods si estos no tolerant el taint
+
+tenemos 3 taint effect : noSchedule | PreferNoSchedule | noExecute
+
+el noschedule siginfica que solo podran existir los pods en el cual su toleration calze en este nodo.
+PreferNoSchedule, va a intentar no programar el pod en caso de que el toleration no calze ok ? pero esto
+no lo garantiza
+noExecute siginfica que los nuevos pods no van a poder ejecutarse en el nodo y en caso de haber pods ejecutandose
+estos van a ser deshalojados
+
+los tolerations los tendria que aplicar en el manifiesto
+
+la diferencia entre los taints/toleration y nodeaffinity/antiaffinity es principalmente que los taints/toleration
+son mucho mas flexibles , por ejemplo con los tains/tolerations no siempre el scheduller va a lanzar los pods en el mismo
+nodo puede que lo lance en otro distinto , pero el los affinity/anti-affinity este mismo concepto es muy estricto
+y lanzan pods solamentate donde hay afinidad
+
+
+PREDICADOS
+
+el scheduler va a travez de filtros o predocados y en base a ellos rankea cada nodo y vee como lanzar los pods
+
+ejemplo: hay un predicado llamado HostNamePred que tambien se conoce como hostname el cual filtra los nodos que no coinciden
+con el nombre de nodo especificado en el pod, otro predicado es PodFitsResources que es el encargado de los recursos necesarios
+por el pod (cpu y ram).
+
+POD SPECIFICATION
+
+la gran mayoria de los scheduling decisions son hechas como parte del pod specification , un pod specification puede
+contener las siguientes:
+
+nodename and nodeselector: el nodename y el nodeselector permite que los pods sean asignado a un nodo solo o a un
+                            grupo de nodos con labels particulares.
+
+
+affinity y anti-affinity: estos pueden ser usados cuando queremos preferir o requerir cual nodo es usado por el scheduller si 
+                          la gracia de estos pod affinity es que no son complemtamente rigidos en caso de no hacer match con un nodo
+
+
+NODE AFFINITY/anti-affinity
+
+en nodeaffinity nosotros tenemos distintos tipos de estos como por ejemplo
+
+requiredDuringSchedulingIgnoredDuringExecution
+preferredDuringSchedulingIgnoredDuringExecution
+
+la diferencia entre ambos tipos de affinity rules es que en requiredDuringSchedulingIgnoredDuringExecution el scheduler
+si o si tiene que programar el pod en el nodo , en caso de que el nodo no se encuentre disponible , este no lo va programar
+
+en cambio en preferredDuringSchedulingIgnoredDuringExecution , en caso de que el nodo no este disponible , elshceduller ignora
+los node affinity rules y programa en cualquier nodo
+
+la ventaja de los dos tipos de afinidad que mencione mas arriba , es que si en caso de que el label se elimine ok ? el pod
+seguira existiendo y trabajando en el nodo en el que fue ya programado.
+
+requiredDuringSchedulingRequiredDuringScheduling
+
+en este tipo de ejecucion si el label no se encuentra en el nodo , va a desalojar a todos los pods que estaban trabajando en el nodo
+con ese node affinity
+
+
+################MONITOREO Y TROUBLESHOOTING################
+
+en kubernetes puede resultar dificil hacer seguimiento a los workload , es por eso que el monitoreo es esencial.
+monitorear consiste en collecionar metricas como cpu , memoria , uso de disco, etc
+todas estas funciones estan incorporadas en kubernetes con el metric server (ojo el metric server que estamos ocupando
+en kubernetes ahora , es una version reducidad del ya deprecado heapster) la idea es que esta api expuesta pueda ser
+usada con otros agentes
+
+el metric server lo que hace es exponer una api standard la cual puede ser consumida por otros agentes como autoscallers
+(el edpoint en donde se exponen estas metricas es /apis/metrics/k8s.io/)
+
+para logear la actividad a lo largo de todos los nodos puede ser util fluentd ya que fluentd (es un
+tipo logstash que colecciona eventos desde distintas fuentes como bases de datos relacionales , iaas , sas, hadoop )
+
+*** metricsserver guarda todo en memoria (no persiste los datos) , pero como hacer kubernetes para monitorear ?
+bueno kuberlet contiene un sub componente llamado cAdvisor el cual es el responsable de recuperar las metricas
+de rendimiento y exponerlas a travez de la api de kubelet para el metrics server.
+
+TROUBLESHOOTING BASICO
+
+el troubleshooting basico deberia ser iniciar un deployment
+$ kubectl create deploy busybox --image=busybox --command sleep 3600
+
+$ kubectl exec -ti <busybox_pod> -- /bin/sh 
+
+si el pod esta corriendo hace un kubectl logs pod-name para ver cual es la salida estandard
+el siguiente lugar a checkear es la network checkeando dns , firewalls(esto era lo que hacia con el container del pablo)
+
+la seguridad tambien puede ser un reto. rbac puede tambien darme algun tipo de issue , selinux and app armonr
+una nueva caracteristica es de k8s es la capacidad de auditar el kube-apiserver, cual permite ver las acciones que hizo esta api
+antes de aceptar.
+
+podriamos decir que tenemos que seguir este tipo de corolario
+
+Errors from the command line
+Pod logs and state of Pods
+Use shell to troubleshoot Pod DNS and network
+Check node logs for errors, make sure there are enough resources allocated
+RBAC, SELinux or AppArmor for security settings​
+API calls to and from controllers to kube-apiserver
+Enable auditing
+Inter-node network issues, DNS and firewall
+Master server controllers (control Pods in pending or error state, errors in log files, sufficient resources, etc).
+
+Ephemeral Containers
+
+este feature que esta disponible desde la version 1.16 me permite anadir un contenedor a un pod corriendo =)
+la idea de esto es anadir un contenedor sin necesidad de recrear el pod o reiniciar nada.
+
+estos containers efimeros estan como alpha por ende podrian cambiar a lo largo del tiempo.
+ojo estos contenedores se anaden via api call (o sea a travez de kubectl) no atraves de podspec(en la receta).
+
+con el siguiente comando yo puedo ocupar los contenedores efimeros
+
+kubectl debug buggypod --image debian --attach
+
+Cluster Start Sequence
+
+la secuencia de inicio en un cluster empieza con systemd si se construyo el cluster con kubeadm.
+otras herramientas pueden ocupar diferentes medotodos
+
+systemctl status kubelet.service con eso puedo ver el estado actual del archivo  de configuracion que esta en
+/etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+
+en este archivo /var/lib/kubelet/config.yaml yo voy a encontrar el staticPodPath ,esta variable dentro de este archivo
+indica el directorio en donde kubelete va a leer cada yaml file e iniciar el pod.
+
+para hacer un troubleshoot del scheduler , tendria que poner un yaml file en este directorio.
+staticPodPath is set to /etc/kubernetes/manifests/
+
+en este directorio yo podria crear un deployment o pod tan solo anadiendo el manifiesto(deployment.yaml) a este directorio
+en caso de  que yo llegue a eliminar el manifiesto de esa carpeta kubernetes va a eliminar el pod/deployment.
+esto seria un buen ejercicio si cada nodo(en donde se ejecuta un kubelet), no tubiera acceso al kube-api-server
+
+ojo kubelet solo actua a nivel a pod (o sea el puede crear y eliminar pods) , entonces en esta manera tu solo podrias crear
+pod's (NO REPLICASET , NI DEPLOYMENT)
+cuando tenemos el kubernete como servicio (kubelet.service) esta ruta esta configurada en la opcion pod-manifest-path, otra
+forma de configurar esta ruta tambien es en "--config=kubeconfig.yaml" y en kubeconfig.yaml anadir la ruta correspondiente
+
+Using krew
+
+ojo krew no es mas que un manejador de paquetes para kubectl (o sea seria como una especie de brew pero para kubect )
+
+cluster upgrade
+
+Para hacer un upgrade del cluster, nosotros  podemos manejar la version actual y las 2 ultimas dentro del cluster ok ?
+por ejemplo si tengo la version 1.13 en el kube-api-server podria hacer que ciertos compoenentes de mi cluster (excluyendo
+coredns y etcd cluster) tengan la version 1.13 - 1.12(el controller) o .1.11 - 1.12 - 1.13 (el kubelet y el kube-proxy)
+
+para hacer un upgrade del cluster no es recomendable pasar por ejempo de una version 1.11 a una 1.13 (saltarse la 1.12)
+tenemos 3 formas de actualizar un cluster 1.- ocupando una los features de una nube 2.-ocupando kubeadm 3.-hardway (onda kelsey hightower)
+
+cuando el master se actualiza , el cluster sigue operando pero sin las funcionalidades del master (por ejemplo no podrias deployar
+nada por que el kube-api-server del master esta caido o hacer un kubcetl get nodes/pods por que esta caido).
+
+tenemos distintas etrategias para actualizar los worker nodes :
+
+1.- es bajar todos los nodos y actualizarlos ... seria mas facil pero dejas downtime si tienes clusters productivos
+2.- actualizar un nodo por vez , eso significa que acordono y dreno el nodo , lo actualizo y depsues lo dejo operativo.
+3.- anadir un nuevo nodo al cluster con la nueva version , migrar los pods y elminar el nodo con la version mas antigua 
+
+
+#########HANDS ON PRACTICE##############
+
+Para crear un pod tendria que ocupar el comando run de la siguiente manera:
+kubectl run nginx --image=nginx
+
+Para crear un deplyment tendria que ocupar el comando run d ela siguiente manera:
+kubectl create deployment nginx --image=nginx:latest
+
+ROLLBACKS
+
+para hacer un rollback en kubernetes primero vamos a ocupar los siguientes comandos:
+
+los rollbacks pueden ser aplicables a los deployments , statefulsets y daemonsets.
+la gran diferencia entre los rs y los deployments es que los deplyoments manejan y crean replicasets
+entonces cuando hago un rollback y actualizo una version , este deployment es capaz de crear otro rs
+
+ojo cuando hago un upgrade desde una version 2 a una version 3 , puedo darme cuenta que tengo 2 rs con 0
+k8s no elimina enseguida los rs y la idea de hacer esto es que en caso de que tengamos que hacer rollback
+no se haga enseguida
+
+revisionHistoryLimit ---> me dice cuantos replicasets puedo retener
+*** en loacks , por default k8s guarda los 10 ultimos replicasets
+*** los rs creados por los deployments vas rollban indicando que version son en el campo annotatios / revision
+
+con el siguiente comando : kubectl set image deployment/nginx nginx=nginx:alpine-perl --all lo que hago
+es setear esa nueva imagen (sin necesidad de hacer un kubectl apply -f filedeployment)
+
+kubectl rollout history deployment/app --> veo cuales son las versiones (o rs que mantiene k8s )
+kubectl rollout undo deployment/nginx --to-revision=1 (hago rollback a una version especifica)
+kubectl rollout history deployment nginx --revision=2  (veo los cambios que se hicieron en la segunda version)
+
+
+en caso de querer editar el numero de replicas lo puedo hacer de dos formas:
+
+1.- kubectl scale deploy/<DEPLOY_NAME> --replicas=4
+2.- kubetctl edit deployment <DEPLOY_NAME>
+
+en caso de exponer un servicio en un deployment ocupo:
+
+kubectl expose deployment/nginx --port=80 --type=NodePort
+
+para setear una imagen especifica en un deployment ocupo
+
+kubectl set image deployment nginx nginx=nginx:1.18
+
+REPLICASETS
+
+para "reiniciar" un replicaset (en caso de que le cambie algo del manifiesto , no automaticamente el rs toma los cambios ).
+entonces yo podria escalar a 0 y luego volver a escalar al number deseado, entonces para hacer eso tengo 2 formas
+
+1.- OCUPAR KUBECTL:  kubectl scale --replicas=2 rs/web
+2.- OCUPAR kubectl edit rs ReplicaSet_name 
+
+ojo con los replicaset yo puedo ocupar el autoscalling (HPA), escalando los pods por cpu de la siguiente manera
+kubectl autoscale rs web --max=5
+
+
+GENERAR MANIFIESTOS
+
+*** en las versiones nuevas debemos aplicar --dry-run=client(no --dry-run)
+
+el siguiente comando me genera un manifiesto de un pod
+
+kubectl run nginx --image=nginx --dry-run -o yaml
+
+el siguiente comando me genera un manifiesto de un deployment
+
+kubectl create deployment --image=nginx nginx --dry-run -o yaml
+
+En caso de querer exponer un servicio lo puedo hacer de dos maneras
+
+ 1.- kubectl expose pod redis --port=6379 --name redis-service --dry-run=client -o yaml
+
+ 2.- kubectl create service clusterip redis --tcp=6379:6379 --dry-run=client -o yaml
+
+ la gran diferencia entre ambas maneras es que cuando expongo el pod , automaticamente el sertvicio va a tomar los
+ labels del pod , en caso de crear un servicio , tendria que crear un service.yaml con la salida del --dry-run
+ para luego yo anadir los labels
+
+en caso de querer exponer un servicio tipo nodeport, hariamos lo siguiente:
+
+kubectl create service nodeport nginx --tcp=80:80 --node-port=30080 --dry-run=client -o yaml
+
+NAMESPACES 
+
+en caso de que siempre queramos apuntar al mismo namespace , nosotros tenemor que ocupar el comando config
+kubectl config set-context $(kubectl config current-context) --namespace=<algo>
+
+SCHEDULLING MANUAL
+
+en caso de querer verificar si el scheduller esta ok tendria que ocupar el siguiente comando:
+
+kubectl get pods --namespace kube-system
+o sea ver los pods en el kube-system
+
+en caso de que no este schedulling , podria anadir en los pods el atributo nodeName y con eso hago schedulling
+a un nodo especifico
+
+LABELS AND SELECTORES
+
+Con el siguiente comando kubectl get pods -l env=dev | wc -l , yo puedo saber cuantos pods tengo en el ambientes
+development
+
+el caso de querer seleccionar un pod el cual sea parte de distintos labels , tendriamos que aplicar manualmente un selector
+ya que como estudiamos los selectores son quienes me permites "SELECCIONAR" los pods con cieertos labels.
+en este caso tendria lo siguiente:
+
+kubectl get pods --selector env=prod,bu=finance,tier=frontend
+
+para crear un label a un nodo , tenemos que ocupar el siguiente comando: kubectl label nodes <nodenames> <label-key>=<label-value>
+
+TAINTS/TOLERATIONS
+
+de la siguiente forma yo puedo manchar un nodo
+
+kubectl taint node master node-role.kubernetes.io/master:NoSchedule
+
+pero en caso de querer quitar una mancha es lo mismo pero con un menos al final
+kubectl taint node master node-role.kubernetes.io/master:NoSchedule-
+
+
+NODE-AFFINITY/ANTIAFFINITY
+
+siempre que queramos hacer un affinity yo voy a ocupar lo siguiente:
+
+afffinity
+  nodeAffinity:
+    <PREDICADO A OCUPAR>:
+      nodeSelectorTerms:
+        - matchExpressions:
+          - key: 
+            operator: Exits /In / NotIn 
+            values:
+              -
+              -
+
+
+RESOURCE REQUERIMENTS AND LIMITS
+
+este estado "OOMKilled" es comun cuando hay problemas con memoria (quiere decir que el limit fue excedido)
+
+DAEMONSETS 
+
+Verificar todos los daemon sets que estan creados en el cluster : kubectl get DaemonSet --all-namespaces | wc -l
+(acuerdate que cuando listas ocupando wc, el -l lo que significa es lines y siempre hay que restarle uno al resultado final)
+
+para crear un daemon set ocupo 
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: elasticsearch
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: fluentd
+  template:
+    metadata:
+      labels:
+        name: fluentd
+    spec:
+      containers:
+      - name: fluentd
+        image: k8s.gcr.io/fluentd-elasticsearch:1.20
+
+STATICPODS
+
+Siempre cuando se crea un static pod el pod va a tener el nombre y se va anadir "-master" o "-node" al pod que hemos creado
+
+en caso de querer anadir un static pod , podria hacerlo ocupando el siguiente comando:
+
+kubectl run --restart=Never --image=busybox static-busybox --dry-run=client -o yaml --command -- sleep 1000  >> static-busybox.yaml
+** ojo con el --command -- sleep 1000 lo que yo hago es lo mismo que hacer command: ["sleep 1000"] en el manifiesto
+
+CONFIGMAP
+
+una manera de crear un confir map es : kubectl create configmap <config-name> --from-literal=<key>=<value>
+
+otra manera es especificando un archivo .properties: kubectl create configmap <config-name> --from-file=<path-to-file>
+
+en caso de queramos hacer un manifiesto para crear un configmap ocupamos el siguiente manifiesto:
+
+apiVersion: v1
+kind: configMap
+metadata:
+  name: app-config
+data:
+  KEY: VALUE
+
+  file.properties:
+  key2:value2
+  key3:value3
+
+de la siguiente manera yo puedo inyectar los configmap como variables de entorno
+
+apiVersion: v1
+kind: pod
+metadata:
+  name:simple-web-color
+  labels:
+    name: simple-web-color 
+spec:
+  containers:
+  - name: simple-webapp-color
+    image: simple-webapp-conlors 
+    ports:
+      - containerPort: 8080
+    #para inyectar todo el configmap debemos hacer lo siguiente:
+    envFrom:
+      - configMapRef:
+          name: <name-configmap>
+    #en caso de que queramos incluir solo un configmap especifico(o sea solo una key), tendriamos que ocupar:
+    env:
+      - name: APP_COLOR
+        valueFrom:
+            configMapKeyRef:
+                name: app-config
+                key: APP_COLOR
+  volumes:
+    - name: app-config-volume
+      configMap:
+        name: app-config
+
+SECRETS
+
+nosotros podemos configurar los secretos de igual manera que los configmap la primera manera seria:
+
+kubectl create secret generic <secret-name> --from-literal=<key>=<value>
+*** en caso de querer anadir mas secretos , tendria que ocupar mas --from-literal
+
+u ocupado files tambien puedo crear secretos: kubectl create secret generic <secret-name> --from-file=app_secret.properties
+
+en caso de querer crear un manifiesto con secretos , yo tendria que ocupar base64 para encodear los valores
+
+los secretos base64 son se ocuparian de la siguiente manera:
+
+echo -n 'hola' | base64  ---> codficar hola a base 64
+echo -n 'aG9sYQ==' | base64 -d ---> decodificar
+
+
+CLUSTER MAINTANCE
+
+con el comando kubectl drain <node> --ignore-daemonsets=true --force lo que yo haago es desalojar todos los pods
+pero los pods no se van a recrear en otro nodo (se pierden de una) ya que esto deshaloja los pods incluso si no hay pods
+manejados por un ReplicationController, ReplicaSet, Job, DaemonSet or StatefulSet
+*** el --ignore-daemonsets=true lo que hace es deshalojar todo menos los daemonsets
+
+
+CLUSTER UPGRADE 
+
+kubeadm upgrade plan --> me muestra cuales son mis compoenentes , que versiones tienen y cual es la ultima version
+
+actualizar ocupando kubeadm(masters)
+
+apt install -y kubeadm=1.12.0-00
+kubeadm upgrade apply v1.12.0
+
+ojo cuando ocupo kubeadm me deploya un kubelet en el master node y tendria quer actualizarlo tambien
+
+apt install -y kubelet=1.12.0-00
+systemctl restart kubelet
+
+actualizar ocupando kubeadm(workers)
+
+kubcetl drain node-1
+apt install -y kubeadm=1.12.0-00
+apt install -y kubelet=1.12.0-00
+# ojo el --kubelet-version esta deprecado
+kubeadmin upgrade node config --kubelet-version v1.12.0
+systemctl restart kubelet

@@ -1,0 +1,390 @@
+terraform apply -target aws_resource.name con el comando anterior solo actualizo
+una recurso especifico
+
+terraform refresh , me trae el estado actual de la infraestructura... solo altera el tfstate
+terraform show , basicamente me muestra lo que tengo corriendo en mi infraestructura
+actualmente
+
+ahora cuando hablamos de estados deseados en terraform , siempre es con respecto
+al codigo terraform que tengo escrito(acuerdate de lo que paso con el security group)
+que a terraform le daba lo mismo si cambiaban el security group 
+
+
+Understanding attributes and output values in terraform
+
+en terraform tenemos recursos output que pueden ser ocupamos como input's en otros recursos
+(ej: crear un eip y dps anadirlo al SG)
+
+VARIABLES ASSIGMENT
+
+Como sabemos en terraform nosotros podemos asignar variables en un archivo variables.tf 
+y anadiendo un valor por default.
+puedo anadir las variables ocupando: terraform apply -var="variable=valor"
+
+con el file terraform.tfvars yo anado las variables en ese archivo para pasar ese archivo tengo
+que ocupar : terraform apply -var-file="custom.tfvars"
+
+tambien puedo ocupar variables de entorno ocupando
+
+para windows:
+setx TF_VAR_variable valor_variable
+para linux
+export TF_VAR_variable="valor"
+
+VARUABLES TYPES
+
+en tf nosotros podemos ocupar variables que sen tipo number , string , list y map
+
+las variables tipo number y string son faciles , pero las list y map son un  poco mas complejas
+una variable tipo list seria:
+["joaquin",antonio,"paula"]
+una variable tipo map seria:
+{ name = "paula", age="32" }
+
+ojo en las versiones nuevas de terraform puedo definir las listas por ejemplo con un tipo
+por ejemplo string o number
+
+para definir una variable list que contenga solo numeros tendria que ocupar:
+
+variable "sg_ports"{
+    type = list(number)
+    .....
+}
+
+LOCAL values
+
+La idea de tener local values en terraform es no repetir una porcion de codigo N veces
+por ejemplo cuando tenemos 3 recursos tageados con las mismas etiquetas ... en ese caso nosotros
+vamos a poder ocupar local values de la siguiente manera:
+
+locals{
+    common_tag = {
+        environment = prod
+        owner= jjachurachavez
+    }
+}
+
+y luego llamarlo como locals.common_tag
+pero tambien nosotros podemos ocupar expresiones para generar un local value por ejemplo
+locals{
+    name_prefix = "${var.name != "" ? var.name : var.default}"
+}
+
+la idea de los valores locals es evitar la repeticion de los mismos valores , pero ojo hay que
+ocuparlos con modederacion por que podria ser in mantenible el codigo en el futuro
+
+TERRAFORM FUNCTIONS
+
+terraform solo soporta las funciones predefinidas por el , no soporta ninguna function escrita
+por el usuario
+
+split ocupa la siguiente manera split(separador,string) y me arroja una lista como resultado
+
+element lo que hace es recorrer una lista y entregarme el valor en una posicion de la lista
+funciona como : element(list,count.index) ** count.index vendria a ser la posicion
+
+lookup para recorrer un map seria lookup(map,key,default_word) , ojo default word seria la palabra
+que me arrojaria en caso de no encontrar nada.
+
+tambien puedo ocupar lookup para recorrer listas , por :
+lookup({a="ay", b="bee"}, "a", "what?")
+
+esto lo que hace es devolverme algo si en el map contiene el valor "a", en caso de no ser asi
+devuelve el valor what
+
+con la funcion file , lo que hago es leer un file en un cierto directorio.
+
+funcion timestamp() lo que hace  es darme el timepo actual y la funcion formatdate lo que hace
+es formatearme el timestamp (por eso una funcion va dentro de la otra
+)
+
+DATASOURCES
+
+los datasources en terraform me permiten generar campos mas custom , por ejemplo yo se que las amis
+se llaman distinto dependiendo de la region ok? pero yo quisiera siempre ocupar este tipo de amis
+amzn2-ami-hvm.... , entonces como se que esas ami's siempre empiezan asi (independiente de la region)
+lo que haremos es generar un data sources de tipo aws_ami.
+
+lo que hace ese datasource tipo aws_ami es ir a buscar la informacion a aws y me la deja almacenada
+cosa que despues en mi codigo terraform pueda ocuparla
+
+SEMANTICS AND LOAD ORDERS
+
+cuando tengo muchos file  en un directorio por lo general terraform las carga en orden alfabetico
+
+DYNAMIC BLOCKS
+
+cuando nosotros por ejemplo queremos configurar un security group, tienes bloques por ejemplo:
+
+ingress {
+    from_port = 9200
+    to_port = 9200
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+}
+
+en este caso por ejenplo si quisiera crear muchos ingress , yo podria ocupar los dynamics BLOCKS
+y en este caso tendria
+
+dynamic "ingress" {
+    for_each = var.ingress_ports
+    content {
+        from_port = ingress.value
+        to_port = ingress.value
+        protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+}
+
+como te das cuenta , nosotros vamos a repetir n veces la misma sentencia para crear un ingress,
+es por eso que nosotros podemos usar bloques dinamicos para esto.
+
+iterators
+
+este argumento es opcion y setea una especie de variable temporal la cual voy a ocupar en el 
+bloque dinamico ej:
+
+dynamic "ingress" {
+    for_each = var.ingress_ports
+    iterator = port
+    content {
+        from_port = port.value
+        to_port = port.value
+        protocol = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+}
+
+en el ejemplo anterior yo ocupe iterator=port , para establecer que lo que iba a iterar 
+en el for_each es de nombre port.
+
+cabe destacar que los dynamic blocks , se ocupan en bloques de codigo repetitivos (me refiero
+a que cuando hago un sg , lo que hago es ocupar ingress/egress y en esos bloques de codigo , ocupamos
+los bloques dinamicos)
+
+TAINTING RESOURCES
+
+la idea de marcar con taint los recursos es forzarlos a que sean destruidos y sean recreados en 
+un nuevo apply.
+
+por ejemplo si ocupo el comando terraform taint aws_instance.<mi_instancia> lo que yo hago es
+marcar dicho recurso para que cuando haga un apply me re-cree la infraestructura.
+si te vas al tfstate el status es tainted
+
+TERRAFORM GRAPH
+
+Este comando es usado para generar una representacion visual de cada una de las  ejecuciones
+del terraform plan
+
+terraform graph > example.dot eso me va arrojar una archivo y luego ese archivo puedo convertirlo
+en una imagen ocupando graphviz
+
+BLOQUE TERRAFORM
+
+en este bloque de codigo , es usado para configurar algunos comportamientos especificos 
+como requerimientos misnimos de la version de terraform a ocupar en el codigo.
+
+requiered_version , setea las versiones de terraform en las cuales este codigo va a correr
+required_provider , en este bloque nosotro ecspecificamos todos los provders que nosotros
+vamos a requerer en el modulo actual y las versiones
+
+PROVISIONERS
+
+La idea de los provisioners es poder ejecutar scripts de manera local o remoto en el momento
+de crear o eliminar la infraestructura
+
+TYPES OF PROVISIONERS
+
+nosotros tenemos dos tipos de provisioners local-exec y remote-exec.
+
+local-exec: la idea de este provider es ejecutar un comando local en de la maquina  por ejemplo:
+
+resource "aws_instance" "web"{
+
+    provisioner "local-exec"{
+        command = "echo ${aws_instance.web.private_ip} >> private_ips.txt"
+    }
+}
+
+una de los motivos por los cuales ocupo los local-exec es por que tengo que ejecutar playbook 
+cabe destacar que el local-exec se ejecuta en la maquina en donde estoy corriendo terraform y no
+en la vm que estoy creando (mucho ojo)
+
+remote-exec: ejecuta scripts a "distancia" por decirlo asi tal como explicamos detras el locla exec
+se ejecuta en la maquina que corre terraform , en cambio  esta opcion se ejecuta en la maquina que 
+se esta creando
+
+TERRAFORM PROVISIONERS TYPES
+
+en terraform existen dos tipos de provisioners :
+
+createion-time provisioner -> solo corren durante la creacion nunca durante la actualizacion
+                              u otro tipo de ciclo de vida, si este  creation-time falla , entonces
+                              el recursos va a ser marcado como tainted (manchado)
+
+destroy-time provisioner   -> corre despues de que el recursos fue destruido y lo que hace ejecuta un comando
+                            en caod de que el recurso fue destruido (para eso se ocupa la palabra reservada when)
+
+                               provisioner "remote-exec" {
+                                    when    = destroy
+                                    inline = [
+                                        "sudo yum -y remove nano"
+                                    ]
+                                }
+
+FAILUTE BEHAVIOR IN PROVISIONERS
+
+por default si un provisioner falla este tambien puede causar de que el propio terraform apply
+falle , para eso nosotros tenemos la opcion "on_failure " la cual puede ser continue o fail.
+en caso de poner continue ... el prrovisioner va a continuar independiente del resultado.
+
+en caso de tener fail para el terraform apply y taint(mancha) el recurso (este es el comportamiento por
+default que tiene terraform)
+
+TERRAFORM REGISTRY
+
+En terraform registry yo puedo encontrar una gran cantidad de modulos listos y aprobados
+por terraform
+
+como llamaria un modulo del registry ?
+
+module "ec2-instance"{
+    source = "terraform-aws-modules/ec2-instance/aws"
+    version = "2.13.0"
+}
+
+TERRAFORM WORKSPACE
+
+la idea de esto es tener distintos ambientes de los cuales tienen distintas variables de entorno asociadas
+entonces terraform permite hacer eso ocupando los workspaces ejemplo:
+
+imagina que en un ambiente de stage nosotros tenemos las maquinas  con el tipo t2.micro
+en cambio en produccion nosotros quisieramos la misma infra pero con mauqinas t2.large
+
+entonces aca nos sirven los terraform workspace, si hago terraform workspace show
+muestra el workspace en el que estoy, terraform workspace new ... me crea un nuevo workspace
+terraform workspace list me muestra todos los workspaces existentes.
+
+para ocupar los workspace nosotros solo necesitamos generar una variable tipo map y luego 
+esa variable representarla en el codigo que quiero cambiar ejemplo
+
+variable "instance_type" {
+    type = "map"
+    default = {
+        default = "t2.nano"
+        dev     = "t2.micro"
+        prd     = "t2.large"
+    }
+}
+resource "aws_instance" "myec2"{
+    ami = "<AMI-ID>"
+    instance_type = lookup(var.instance_type, terraform.workspace)
+}
+
+si tengo multiples workspace , eso significa que tenfo multiples  
+COMANDOS TERRAFORM
+
+terraform list ---> me lista todos los recursos que tengo ocupado en el terraform state
+terraform mv ---> con este comando lo que puedo hacer es renombrar la instancia ec2 por ejemplo
+entonces lo que haria es terraform mv aws_instance.webapp aws_instance.myec2 y lo que haria
+es cambiarle el nombre.
+
+terraform pull --->  lo ocupo cuando quiero botar manualmente el estado del terraform stfstate
+
+terraform push ---> se ocupa cuando quiero subir un tfstate local a un remote tfstate file
+
+terraform state rm ---> se ocupa para eliminar items del codigo terraform
+terraform state show ---> inspecciona un elemento
+
+TERRAFORM IMPORT
+
+Este comando es super util cuando un recurso ya fue creado ok ? y esta corriendo pero
+por ejemplo yo quiero anadir nuevos cambios al terraform.tfstate , entonces lo que yo hago es
+hacer un terraform import con tal de tomar dicha maquina y anadirl al codigo TERRAFORM
+
+terraform import aws_instance.name-instance <id-maquina>
+
+TERRAFORM SECURITY 
+
+Sensitive parameter
+
+en terraform yo puedo tener por ejemplo ouputs de passwords o ese tipo de cosas, entonces con
+el parametro sensitive=true , lo que hago es prevenir que dicho output pueda ser visto en la consola
+del output.
+pero ojo este parametro no va encriptar este valor en el state y este valor va a ser guardado
+como texto plano json file
+
+
+TERRAFORM CLOUD 
+
+
+terraform cloud me permite manejar los ambientes terraform que estan corriendo en un ambiente 
+confiable y consistente con varios features como access control, registry privado para compartir modulos
+policy controls y otros 
+
+la gracia de terraform cloud es que me permite manejar accessos a la consola (de esa manera
+puedo decidir que usuario va a poder deployar la infra y cual no ) , tambien me permite anadir
+politicas, compartir modulos en el codigo
+en el fondo terrafoem cloud me serviria en vez de hacer los terraform init, plan y apply via 
+pipeline, los podria hacer aca .
+
+
+SENTINEL
+
+es un framework para generar policys as a code integrado con los productos enterprise de hashicorp
+la idea de sentinel es poder generar checks a traves de policys
+
+tal como vimos en el video sentinel esta echo para poder integrarlo con los hashicorp enterprises prod
+
+REMOTE BACKENDS
+
+estos remote backend , pueden ser usados , por lo general para correr operaciones en terraform
+cloud.
+
+la idea de ocupar los remote backends es por que con eso yo podria correr operaciones de terraform
+en mi local pero de codigo que lo tengo en terraform cloud.
+
+por ejemplo imagina que yo tengo codigo en un repo y lo tengo enlazado con terraform cloud ok ?
+luego hago un pull de ese proyecto para hacerle ciertos cambios y lo corro desde mi local.
+
+bueno en ese caso remote backend me sirve ya que genero un archivo backend.hcl y le anado
+lo siguiente:
+
+workspaces = { name = ""demo-repository }
+hostname =  "app.terraform.io"
+organization = "demo-kplabs-org"
+
+acuerdate que yo en terraform cloud creo un workspace y una organizacion esos serian los 
+campos que se deben cambiar en ese archivo
+
+ojo  en el caso que estaban mostrando , yo hize un workspace a partir de un repositorio github
+entonces si yo quiziera ocupar remote backends en otro trozo de codigo ... no podria hacer el apply
+ya que no pertenece al workdpsace  especifico del repo en el que estoy trabajando
+
+
+ojo yo tengo los local backends , que guardan el estado  en un local filesystem , bloqueando el estado ussando system apis
+
+
+*** terraform puede manejar la creacion de hasta 10 recursos en paralelo al mismo timepo
+*** la funcion zipmap en terraform lo que hace es ingresar 2 listas como input y me arroja
+un map de la siguiente manera:
+
+zipmap(["a", "b"], [1, 2])
+{
+  "a" = 1,
+  "b" = 2,
+}
+
+la primera columna como string y la segunda como numero
+
+**** distinc me genera una lista no un map ojo ahi
+*** terraform recomienda 2 espacios por nivel de anidamiento
+*** ojo actualmente terraform no tiene ningun mecanismo para protejer secretos que son
+retornados via datasources , eso significa que los secretos leidos van a ser persistidos
+dentro del terraform state
+*** terraform state me permite modificar valores actuales como remover items 
+*** con terraform workspace select <workspace> , yo puedo cambiar de workspace
+*** con terraform workspace new <workspace> yo creo mi nuevo 
+
+ojo el clustering , saml/sso login y clustering son parte de terraform enterprise
+*** terraform tfstate contiene data sensitiva

@@ -1,0 +1,71 @@
+#### FUNDAMENTOS DE VIRTUALIZCION
+
+CGROUPS
+los cgroups son un feature super importante para manejar , limitar y aislar recursos usados por grupos de procesos y subprocesos.
+estos cgroups fueron ocupados en distintos mecanismos de virtualizacion como LXC
+
+en el fondo los cgroups nos permiten hacer una virtualizacion en la cual yo puedo limitar el numero de cpu , disco , I/O y network
+que un grupo de procesos puede ocupar. Tambien los cgroups puede ser usados para propositos de billing.
+
+en las mas recientes implementaciones del kernel de linux  los cgroups permiten terminar toda unidad , es significa
+que terminan sus grupos de procesos y tambien sus subprocesos.
+esto es bueno cuando tienes procesos de manera jerarquica, por que mueren los proceoss padres y los subprocesos hijos
+tambien. Los conenedores se benefician de los cgroups por que permiten limitar el uso de recursos.
+
+NAMESPACES
+
+este es otra caracteristica del kernel de linux que permite a los grupos de procesos limitar la visibilidad  de los procesos
+contenidos en un cgroup por ejemplo. de esta forma un procesos corrienendo en un cgrpup (que ya tienen quotas de recursos)
+no van a poder tener visibilidad de otros process id , network interfaces , usuarrios , file system montados.
+
+los procesos corriendo dentro de un namespace estan concientes de cualquier cambio en el namespace. pero dichos procesos
+no van a saber que ocurre fuera de su namespace y no van a ser visibles a otros procesos en otros namespaces.
+
+Unification File System( UNION FS)
+
+Caracteristica de los kernels LINUX, FREEBSD, NETBSD, permite que multiples directorios puedan ser vistos como un solo 
+file system unificado.
+
+cuando tenemos muchos filesystem, llamados ramas que estan virtualmente apilados, su contenido aparece mezclado , sin embargo
+fisicamente ellos esttan separados, en esta separacion anadimos distintos niveles de accesos como read-only o read-write
+ayudando a prevenir corrupciones de data.
+este mecanismo crea una copia fisica de cada file existente , cuando esta esta siendo accesado para ser cambiado.
+esta copia esta hecha dentro de un file susystem modificable, parte de unionfs y esa copia se esta modificando.
+sin embargo virtualmente pareciera que el archivo original fue modificado.
+
+entonces en pocas palabras union file system lo que hace basicamente es tomar distintos filesystems y crear una union
+de sus contenidos con la capa superior remplazando cualquier file encontrado en los filesystems.
+
+la gracias de ocupar unionfs es que yo podria hacer los cambios dentros de un contenedor en runtime.
+el contenedor y otros filesystems escribibles , el contenedor corriendo y un file system modificable estan apilados
+dentro de un unionfs. el file system unificado da la impresion de que el actual continer image esta siendo modificado.
+pero en verdad lo que esta modificando es el file system. en algunos ambientes hay una posibilidad de exportar los nuevos
+files apilados en un contenedor dentro de otro contenedor.
+
+
+Standart en contenedores
+
+nosotros tenemos 2 tipos de standards en los contenedores , tenemos appc(app container) y open container initiative(OCI)
+
+
+APP CONTAINER:
+
+especificacion que fue introducidad el 2014 por coreoOS. uno de los containers runtimes implementados es rkt.
+el appc specification define el formato de una imagen de contenedor, como la aplicacion es empaquetada dentro del contenedor
+un mecanismo de deployment y un runtime.
+
+aplication container image(ACI): define el empaquetado , compresion y extraccion de los archivos que componen la imagen del contenedor
+jutno con la validacion de la integridad de la imagen del contenedor.
+appplication container image discovery: define como la imagen es linkeada a una imagen descargable.
+app container pod : define como es un deployment y la ejecucion de una unidad para un grupo de containers.
+
+OPEN CONTAINER INITIATIVE(OCI):
+
+incluida por docker e incorpora dos especificaciones , el runtime specification(runtime-spec) y la image specification(image-spec)
+la especification de runtime es como  corre el fylesystem en un disco sin empaquetar. 
+
+CONTAINER RUNTIME:
+
+QUE ES UN CONTAINER RUNTIME?  en palabras bien sencillas esto permite describir la ejecucion , ciclo de vida y configuracion
+de un container. el role de un container runtime es proveer un ambiente que soporte operaciones basicas con imagenes y containers
+corriendo.

@@ -1,0 +1,1309 @@
+
+####### CURSO UDEMY AWS ################
+
+----REGIONES
+Una region puede ser virginia del norte por ejemplo y dentro de esa region tenemos las zonas de disponibilidad.
+amazon tiene muchas regiones, los availability zones pueden ser desde la letra a hasta la f (en este momento aws
+podria tener hasta 6 az) y estos son datacenter en el mundo 1 az = 1 datacenter.
+
+iam y s3 son los unicos servicios que no tienen alcanze regional
+
+Recursos de RED
+vpc
+route53
+direct connect
+
+computacion
+
+ec2
+ECS
+ELASTICBEANSTALK
+LAMBDA
+
+Almacenamiento
+S3
+CND
+GLACIER
+EFS
+SNOWBALL
+STORAGE GATEWAY(MAQUINA VIRTUL QUE CORRO EN MI OFICINA Y REPLICA LOS DATOS A AWS)
+
+Databases
+
+RDS
+    - sql server
+    - amazon aurora
+    - maria db
+
+DYNAMO DB
+ELASTICCACHE (PUEDO CREAR CLUSTERS REDIS, ETC)
+REDSHIFT
+DMS
+
+IAM
+
+En iam nosotros podemos restringir accesos  , dar accesos especificos ,ocupar una identidad federada autenticacion multifactor
+iam es un serivio global (lo que significa que no esta relacionado a regiones)
+los usuarios no tienen nigun permiso al ser creados por primera vez
+
+Composicion del IAM
+    - USUARIOS FINALES (a estos usuarios pueden pertenecer a multiples grupos)
+    - GRUPOS: Coleccion de usuarios bajo permisos especificos (grupo , finanzas o sistemas)
+    - ROLES: Un role es un recursos el cual se lo atacho a un servicio(por ejemplo ec2) y de esa forma voy a poder
+              comunicar esta instancia ec2 con otro servicio (por ejemplo un bucket s3).
+              en otras palabras un roles son solo para uso interno dentro de los recursos aws.
+              un role es lo que vamos a atachar a una maquina ec2
+
+    - POLITICAS: Define que puedo y no puedo hacer , si le aplico las politicas a un role , todo el role va a poder
+                 ocupar las politicas ,lo mismo si quisiera aplicarlo a un grupo
+
+*** los usuarios son para personas y los roles para las maquinas.
+
+BUCKET S3
+
+es un servicio que nos permite recuperar y añadir informacion en la web, s3 es seguro para almacenar datos en la nubes(con s3 yo PUEDO
+añadir archivos word , imagenes , pdf o data de log que es lo mas comun).
+
+no puedo instalar db o s.o en s3, el tamaño que soporta s3 es desde 0 bytes a 5 tb(se dividen en contenedores, un contenedor es un
+directorio), los nombres deben ser unicos.
+s3 tiene consistencia de lectura y escritura (o sea cuando hago un put y sube el objeto, automaticamente esta disponible
+para la lectura) pero cuando actualizo un objeto puede que los cambios no se vean propagados de inmediato.
+en s3 debemos tener en consideracion el id de la version.
+
+tipos de almacenamiento en s3.
+s3
+s3-IA --> para datos de baja frecuencia
+Almacenamiento redundancia reducida
+
+EJEMPLO DE POLICY PARA BUCKET s3
+
+En el primer statement lo que yo estoy diciendo es permitir cualquier accion para el bucket
+jjatest2021 y en el segundo statement lo que hago es cloudfront permita el acceso a cualquier
+objeto dentro del bucket
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "",
+            "Effect": "Allow",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+                "arn:aws:s3:::jjatest2021/*",
+                "arn:aws:s3:::jjatest2021"
+            ]
+        },
+        {
+            "Sid": "2",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity E1JF81TMURGJUG"
+            },
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::jjatest2021/*"
+        }
+    ]
+}
+
+
+¿QUE ES CDN?
+
+La idea es entregar un sitio web o distribuir contenido con la menor latencia posible para el usuario final.
+por ejemplo si hyo tengo un servidor en usa, todos los hoops en distintos lados del mundo van a tener que ir a
+este servidor en usa y van a existir distintas latencias.
+
+una ubicacion limite (UL) , es la ubicacion donde va a estar en cache la informacion(por ejemplo chile
+va a ser un ul el otro año cuando habiliten el datacenter que estan construyendo), aunque chile no va a ser
+una region geografica y una zona de disponibilidad si va a sser un UL.
+
+origen , que es de donde se van a distribuir los archivos del CDN
+
+EL ORIGEN en CDN puede ser un servidor ajeno a aws o tambien una instancia ec2.
+
+ojo las UL pueden ser distintos a las zonas de disponibilidad (o sea puedo estar en una az A de la region X,
+pero yo puedo tener disintoas ul repartidas en todo el mundo)
+
+OJO SI nosotros habilitamos el put en el cdn , nosotros podriamos subir un archivo/data a la ubicacion limite y el se va a encargar de llevar al origen
+
+¿ que es storage GATEWAY ?
+
+La idea es poder replicar la data desde mi centro de datos local (on prem) hacia el tennant de aws.
+la vm es compatible con vmware esxi o hyper v de  azure , una vez que la instalamos y la activamos , nosotros vamos a poder crear una puerta de enlace.
+
+tenemos tres tipos de storage gateway:
+
+volumenes almacenados ---> todos los datos se almacenan localmente y la puerta de enlace almacena los datos de manera asincronica en un amazon s3. los voluemes se pueden atachar a amazon ec2.
+
+volumenes en cache --->  Los datos mas comunes son almacenados localmente y la totalidad de los datos se almacenan en s3
+
+libreria de cinta virtual --> coleccion ilimitada de cintas virtuales.
+
+LOAD BALANCER EN AWS
+
+por que ocupamos un loadbalancer?
+para balancear carga a traves de distintas instancias.
+exponer un solo punto de acceso DNS para tu aplication.
+hacer healt checks hacia las instancias.
+proveer ssl (https) para tus websites.
+HA a traves de las distintas zonas.
+separar trafico publico vs trafico privado hacia tu app.
+
+Healt Checks ---> son cruciales en los loas balancer , ya que al habilitar un healt checks
+                  podemos automatizamente saber si debemos cambiar el trafico haciando donde
+                  estamos enviando, tambien si la instancia no responde 200 esto siginifica
+                  que esta unhealty.
+
+hay 3 tipos de balanceadores
+clasico (http,https,tcp)
+application (http,https,websocket)
+network (tcp, tls y udp)
+
+4XX ERRORES INDUCIDOS POR EL CLIENTE
+5XX ERRORES INDUCIDOS POR LA APLICACION
+
+ojo yo puedo monitorear por cloudwatch estadisticas hacia el load balancer.
+
+- response timeout --> tiempo minimo que voy a esperar la respuesta del checkeo (minimo 2 seg max 60)
+- healt check interval --> tiempo cada cuanto voy a ir a realizar el checkeo.
+- unhelty threshold --> es el umbral de caida(por default es 2), si el balanceador de carga
+va y le pega al path especifico en el puerto especifico 2 veces , en caso de ser unsucess las dos veces , va a poner la instancia fuera de servicio.
+- healty threshold --> por default 10 , va a pegar 10 veces al puerto y archivo especifico,
+en caso de que las 10 veces consecutivas funcionen, siginifica que la instancia esta en linea.
+
+Application Load Balancer:
+soporta http/2 y webasockets
+balancea aplicaciones HTTPS a traves de maquinas
+balancea Multiples aplicaciones en la misma maquina (containers)
+redirecciona trafico http a https
+
+este aplication load balancer puede rutear hacia diferenter targets groups, por ejemplo:
+ruteo basado en el path de la url (/pepito , /juanito)
+ruteo basado en el hostname URL (foo.eferreterias.com y caca.eferreterias.com)
+ruteo basado en query string  (www.eferreterias.com/users?id=123)
+
+este tipo de load balancer funciona bien en microservicios y aplicaciones basados en contenedores.
+posee un port mappint para redireccionar dinamicante puertos en ecs.
+
+a diferencia del classic load balancer , yo aca puedo tener un alb y ocuparlo para multiuples
+aplicaciones deplegadas en ecs por ejemplo , en comparacion a los multiples classic load balancer
+que necesitaria (uno por aplicacion , tipo service load balancer en kubernetes).
+
+los targets groups pueden ser , ec2 instances , ecs tasks lambda funcion.
+la los application servers no van a exponer directamente la ip al cliente.
+la verdadera ip es insertada via X-Forwarded-For , tambien los puertos X-Forwarded-Port 
+
+Network Load Balancer
+
+balanceador de carga de capa 4 , esto siginifica que permite forward tcp y udp trafico
+entre las intancias ec2, la latencia es baja (100 ms en comparacion a 400 ms)
+
+el NBL tiene una ip estatica por AZ y soporta la asignacion de elastic ip y no es incluido
+en aws free tier.
+
+ls idea del Network Load Balancer es que pueda balancear trafico tcp , udp y http al mismo
+tiempo (algo similar a lo que hacer el application load balancer pero solo con https y https)
+
+*** stickiness opcion la tienen los classic y los application .
+en los target group puedo habilitar la opcion stickiness
+
+Cross Zone Load Balancing.
+cuando nosotros habilitamos esta opcion , los balanceadores se van a deployar en las diferentes
+az de nuestra region (carolina del note tiene 3 o 4) y cada balanceador va a tener en conocimiento
+las rutas a cada instancia ec2 que esta en las distintas AZ.
+- en los classic load balancer esta opcion esta disable y no hay cobros si la opcion de cross
+zone load balancing es habilitada.
+-en los aplication load balancer esta opcion esta en ON y no puede ser deshabilitida y tampoco tiene 
+cobros
+- los network load balancer si pagan este feature y por default esta deshabilitafa
+
+SSL/TLS IN LOADBALANCER
+
+permite que el trafico entre el cliente y  el load balancer sea seguro.
+SSL ---> se refiere a secure sockets layer (usado para encriptar conexiones).
+TLS -->  se refiere a transport layer security (nueva version) y la gente ocupa tls por sobre ssl
+
+public ssl certificate que son encontrados por autoridades certificadoras(CA)
+los ssl certificates tienen un extiration date y puede ser renovado.
+
+como funciona un ssl en un load balancer ?
+el usuario va a www.example.com , el request va al balanceador(el request es https)
+y el balanceador va al instance correspondiente usando un http listener.
+los clientes pueden usar SNI para especificar el hostname al que quieren llegar.
+
+SNI resuelve el problema de cargar muchos certificados SSL en un web server con muchos websites
+(especificamente resuelve el problema si yo tengo muchos registros a una misma ip y multiples
+certificados a esa misma IP)
+
+CLASSIC LOAD BALANCER
+solo soporta un ssl certificate
+debes usar multiples CLB para multiples hostames con multiples SSL CERTIFICATES.
+
+APPLICATION LOAD BALANCER /NETWORK LOAD BALANCER
+soporta multiples listener con multiples SSL certificates, los server usan SNI
+
+CONNECTION DRAINIG
+
+se llama connection draining para clb y deregistration delay para ALB/NLB.
+
+pero que es esto ? la idea de ocupar connection drainig es vaciar las conexiones mientras
+la instancia se encuentra de-registering o unhealty.
+entonces connection drainig para de enviarle requests a las instancias que estan en esos
+estados (de-registering o unhealty)
+cuando pasa esto, las conexiones existentes esperan a que el connection draining esté
+completo(por default son 300 segundos). esto significa que cualquiera conexion nueva
+que llegue al elb va a ser mandada a otra ec2 instance quye este disponible.
+
+el deregestration delay puede ser de 1 segundos a 3600 segundos(por default es 300 segundos).
+tambien puede ser 0(esto significa que puede ser deshabilitado)
+
+AUTO SCALLING GROUP.
+
+La iudea de tenener un asg es que la web app pueda cambiar en tiempo de produccion
+en la nube tu puedes crear los servidores muy rapido.
+el objetivo de un asg es : scale out (add ec2 instances) , scale in (remove ec2 instances)
+                           asegurdad un minumo y un maximo de maquinas corriendo
+                           automaticamente registrar una nueva instancia en un load balancer.
+ASG ATRIBUTOS
+
+launch configuration tiene la siguiente configuracion:
+    AMI
+    INSTANCE type
+    EC2 USER Data
+    EBS VOLUMES
+    security groups
+    ssh key pair
+
+MIN SIZE , MAX SIZE, INITIAL CAPACITY
+NETWORK
+LB INFORMATION
+
+ASG ALARMS
+es posible con los asg scalar ocupando alarmas cloudwwatch, las alarmas pueden estar basados
+en las metricas como AVG CPU y las metricas estan computadas por las asg instances.
+
+POLICIES EN ASG
+
+como nosotros vimos, yo puedo haacer que los asg hagan scale out y scale in ocupando POLICIES
+estas policies me permiten delimitar como vamos a escalar los asg.
+
+target tracking scaling: este tipo de escalado me sirve cuando yo quiero
+escalar por una metrica especifica por ejemplo quiero mantener toda mi flota con una cpu
+utilization al 50%, entonces se comporta igual que el simple scalling
+pero la diferencia es que aws maneja el numero de instancias que crece o decrece
+
+simple SCALLING: cuando cloudwatch alarm es gatillado (sobre 70 porciento de cpu) anade dos unidades
+en caso contrario elimina dos
+
+step SCALLING: parecido al simple scalling pero aca yo doy mas casuistica, por ejemplo
+si la cpu esta sobre 56% escala 1 instancia , sobre 80% escala 2 instancia ...
+
+scheduled actions: esto lo ocupe , por ejemplo todos los dias de 7 am a 8 pm incrementa 10 ec2X
+
+ASG SCALLING COOLDOWNS
+
+El periodo cooldown es el tiempo en segundo que va a esperar la infra en lanzar otra tarea
+de escalamiento o decrecimiento depsues de que la ejecuto y lanzo una tarea especifica.
+ejemplo si es 300 segundos , se va a demorar 5 minutos en escalar denuevo otra instancia
+ec2.
+
+El default cooldowm para un asg , nosotros lo podemos crear cooldowns que aplican a un 
+simple policy scalling especifico.
+
+el periodo por defualt es 300 segundos, similar al connection draining pero yo puedo 
+especificar 180 segundos para un periodo de cooldown y asi reducir costos 
+
+si tu aplicacion escala tanto para arriba como para abajo multiples veces cada hora,
+modifica el asg cool-down timers y el periodo de alarma en cloudwatch.
+
+ASG EN SOLUTIONS ARCHITECS:
+
+si tengo un asg repartido en distintas availability zone (ejemplo a y b), el asg siempre va a tratar
+de tener una cantidad equilibradas de instancias ec2 , entonces si en un az tengo 4 instancia y en otro
+az tengo 3 instancias ... al momento de eliminar instancias, el asg va a eliminar las instancias del az
+con mas instancias (en este caso en el AZ que tiene 4 instancias eliminaria 1 ).
+en otras palabras asg siempre va a tratar de equilibrar en numero de instancias en las AZ.
+en caso de querer subir una instancia mas , esta la lanzaria en la AZ CON 3 INSTANCIAS.
+
+lifecyle HOOKS:
+
+cuando la instancia es lanzada va a pasar primeramente en pending state y lo conforman los siguiente
+estados:
+    pending wait: que es donde va a estar lanzando la instancia y configurandola
+    pending proceed: la instancia va a estar directamente en Inservice
+
+ojo launch configuration y launch template hacen lo mismo , pero launch configuration es legacy.
+pero yo con launch template puedo : ocupar  instancias on demand y/o spot instance, tener muchas 
+veriones, crear subsets de parametros.
+
+
+EC2 EN AWS
+
+una instancia EC2 puede tener los siguientes tipos:
+
+a demanda -->  - pago por solo lo ocupado
+               - esta es la tipica instancia que ocupo cuando levanto instancia con terraform.
+               - es de alto costo pero no pago por adelantado. / no necesito comprometerme por x tiempo.
+               - es recomentada para trabajo interrumpido donde yo no puedo predecir como se va comportar mi app.
+               - genial para carga de trabajos elasticos
+reservada -->  compro anticipadamente la capacidad de computacion :
+                - sobre un 75% de descuento en comparacion a las on demand pero debo pagar de una el tiempo que voy a ocupar.
+                - Tenemos un tipo el cual debe ser reservada entre 1 y y tres anios , la cual debe ser reservada un tipo especifico de maquina
+                RESERVED INSTANCES:
+                - similar a las instancias reservadas pero  yo puedo ir cambiando el tipo de instancia durante un anio, sin necesidad
+                de quedarme con un tipo fijo.
+                - sobre 54% de descuento.
+                SCHEDULED RESERVED INSTANCES:
+                -(por ejemplo cuando digo , quiero este tipo de maquina
+                la quiero por este anio desde las 6 am hasta las 10 pm por ejemplo ) Y NO NECESITO ESTA MAQUINA DESPUES DE DE ESAS  4 HORAS.
+                SPOT INSTANCES :
+                - ahorro de un 90% en comparacion a las on demand.
+                - Son para pequenas cargas de trabajo, son baratas pero puedes perder las instancias en cualquier momento
+                si tu maximo precio es menor que el actual precio.
+                - usualmente estas son usadas para trabajos como batch jobs , data analisis , image processing.
+                no es recomendable correr trabajos criticos en estas instancias.
+                - siempre puede ser reclamada por aws (en cualquier momento).
+                DEDICATED INSTANCES
+                - instancias que corren en un hw dedicado a ti.
+                - puedes compartir el hw con otras instancias pero tienen que estar en la misma cuenta.
+                DEDICATED HOSTS
+                - aca yo agendo todo un servidor fisico y tengo full control de eso(control al hardware).
+                - tengo acceso a los sockets y a los cores fisicos.
+                - si quisiera hacer nested virtualization yo puedo ocupar este tipo de hosts.
+                pero logicamente son mucho mas caros(30 dias alrrededor de 2000 dolares).
+                - este tipo de instancias son  aceptadas en negocios como el bancario.
+
+    ***** Diferencia importante entre Una instancia dedicada y un host dedicado es que el hosts dedicado
+          me permite dar visibilidad y controles adiconales sobre como se colocan las instancias en el hw
+          y tambien puedo implementar instancias en el propio servidor(EN OTRAS PALABRAS UN HOST dedicado
+          ME DA MAS VISIBILIDAD EN EL HOST FISICO).
+          no tienen mucha diferecia pero en pocas palabras ambos me permiten hacer lo mismo solo que con un
+          host dedicado puedo
+
+TIPS INSTANCES:
+
+R ocupamos este tipo de instancia para aplicaciones que ocupan mucha ram.
+C para aplicaciones que necesutan arta cpu (computo/databses)
+M para aplciaciones balanceadas (general / webapp)
+I para aplciaciones que necesitan buen I/O (databases)
+G para aplcicaciones que necitan buen rendimiento de video.
+T2/T3 burst instancias que tienen buena cpu performance (en este tipo de maquinas pueden correr microservicios).
+estas ocupan creditos , si los creditos bajan la cpu se pone mala.
+
+
+###############
+si nosotros llevamos este ejemplo a una realidad , podria ser un hotel, por ejemplo:
+- on demand seria nuestro cuarto de hotel que arreandamos por la noche , llegamos y nos vamos.
+- reserved es como que si yo quisiera quedarme un mes en hotel , logicamente me harian
+un descuento por el tiempo.
+- spot instances ,el hotel permite que nosotros hagamos ofertas por cuartos vacios y la ofertas
+mas alta gana.
+- dedicated hosts es como que si quisiera arrendar todo el hotel por un tiempo.
+- scheduled reserved instances serian una especie de motel , yo solo pagaria por la cantidad de horas que quiero dormir.
+##############
+
+ojo los grupos de seguridad son statefull o sea al momento de agregar un puerto de entrada , este automaticamente admite la salida(si permito un protocolo o un puerto entrante , automaticamente
+tendre dicho protocolo o puerto en la salids).
+
+puedo tener muchas instancias ec2 en un mismo grupo de seguridad.
+
+siempre que yo paro y luego inicio mi instancia desde la consola, cambia la ip publica de la vm si es que tiene.
+pero toma en consideracion que las elastic ip no cambian pero las cobran.
+
+*** cuando ocupo cloud init no tengo necesidad de ponerle sudo por que actua con usuario root
+
+SPOT INSTANCES:
+
+Las spot instances , son intancias las cuales son muy baratas (90% mas baratas que las a demanda)
+pero es por que funcionan sobre un sistema a demanda.
+
+la hora de estas maquinas esta basado por la oferta y la capacidad, entoncs si el current spot price >  a tu max spot price
+la maquina se va parar en 2 minutos o tu puedes pararla.
+
+otra estrategia es el spot block , en donde yo dejo un bloque de tiempo sin interrupciones (de 1 a 6 horas).
+en raras situaciones la inslancia puede ser reclamada.
+
+*** tienes spot instances para load balancer workloads , flexible workloads y big data wordloads
+
+        Como funcionan las spot requests?
+
+        cuando cancelo los spot request es mi responsabilidad terminar la instancia (no la de aws).
+        primero tengo que cancelar el spot request y despues terminar las associated spot instances.
+
+        creo un spot request en donde defino lo siguiente:
+        - precio maximo
+        - numero de instancias deseados 
+        - lauch specification
+        - request type : one time or persistent
+            one time significa que yo lanzo mi spot request , genera algo y listo.
+            persistent significa que to quiero tener la instancia arriba por una cantidad x DE tiempo
+            esto puede ser alterado dependiento del spot price.
+        - valido desde y hasta.
+
+SPOT FLEETS
+
+- ocupa las spots instances + on demands instancees.
+- la idea de este spot fleet es lanzar un pool de maquina que tengan distintos tipos de capacidad
+  y distintos sistemas operativos .
+- los spot fleet paran el lanzamiento de instancias cuando alcanzaron su capacidad o su costo maximo.
+
+con los spot fleet yo puedo darle una ponderacion a cada tipo de instancia por ejemplo si quiero dar
+esta ponderacion por la cantidad de ram , yo puedo setear una cantidad total de ram y luego dividir
+eso entre las dintintas maquinas que conformar el pool.
+
+con spot fleet yo puedo diseniar mucho mas facil arquitecturas con HA.
+
+
+PLACEMENT GROUPS
+
+La idea de los "placement group" es reducir la latencia entre los servidores.
+para las aplicaciones on prem , esta problematica es mas trivial facil de solucionar ya que si tendremos
+los servidores juntos y van a tener un par de metros de distancia entre si . pero en una nube publica
+esto es un problema, ENTONCES POR ESTO APARECEN LOS PLACEMENT GROUP
+
+las estrategias para un placement group son :
+
+    cluster: instancias que tienen baja latencia en un mismo avaliability zone.
+            o sea en un cluster todas las las instancias estan en el mismo rack y en la misma AZ,
+            compartiendo el mismo harware , como puedes ver uno de los PRO en este tipo es la
+            baja latencia y gran network (10GBPS). Pero si falla el hw cagamos con todo.
+
+            usos de caso : big data , aplicaciones que necesitan baja latencia y alto rendimiento de red.
+
+    spread: distribuye las instancias en distinto hw en las AZ(puedo tener hasta 7 instancias por AZ) y tambien
+            cada instancia es ubicada en distintos racks 
+            si vieramos una foto podriamos diferenciar ya que cada instancia estaria en distinto hardware (una instancia en un hardware)
+            y en distintas zonas de disponiblidad. los PRO en este tipo es el reducido riesgo de fallo,
+            que las maquins ec2 estan en disintos HW , pero los contras es que no puede tener mas de 7 maquinas
+            por zona de disponibilidad.
+
+            usos de caso : aplicaciones criticas que necesitan maxima high availability,
+                           aplicaciones criticas en donde cada instancia debe estar aislada de la otra por fallo.
+
+    partition: similar a spread pero la diferencia que aca tengo el concepto de partition y en un partition 
+                puedo tener las instancias ec2. por AZ puedo tener hasta 7 partition y en este tipo de placement group
+                tambien puedo hacer que las instancias en un partition no compartan rack con otras instancias en otras partition
+                si un partition cae afecta las ec2 pero no afecta otras particiones.
+                *** dos particiones en un mismo placement group NO comparten el mismo rack
+                *** puedo tener sobre 100 instancias en una misma parition
+                casos de uso : HDFS , HBASE , KAFKA (full big data)
+
+*** ojo los placement group cluster no estan disponible o no pueden ser usados para las instancias t2.micro
+
+ENIS
+
+Las enis pueden ser atachadas a una instancia (incluso pueden ser atachadas sobre la marcha), en instancias
+para failover.
+cada eni esta unida a un avialability zone .
+por ejemplo si yo tengo una eth1 en una ec2X , tuve un failover y necesito atachar esa eth1 a un ec2Y 
+yo perferctamente podria atachar esa eth1 a la ec2Y en la marcha sin necesidad de reiniciar las ec2
+
+HIBERNATE
+
+Cuando yo paro una instancia ec2 , esto para todo los procesos, apaga la maquina y guarda el disco ebs 
+pero si quiero volver a lanzar denuevo la maquina , tiene que relanzar todo.
+en cambio con esta nueva opcion hibernate , la memoria ram es preservada por ende la maquina no es
+ni parada ni reiniciada eso implica en que el S.O puede iniciar muy rapido.
+
+la ram es escriba en forma de texto en el root EBS y el root EBS debe estar encriptado.
+funciona en las familias C3, C4, C5 ,M3 ,M4 , M5 ,R3 ,R4 ,R5  y la memoria ram debe tener menos
+de 150 GB.
+
+no es soportado para bare metal instance y no puede hibernar mas de 60 dias.
+
+AMIS
+
+la ami al momento de crearla es especifica a una region, en caso de quee yo quisiera compartir una ami
+puedo hacer pero logiamente el id cambia.
+yo no puedo compratir una ami que me compartieron a mi desde otra cuenta aws.
+
+yo no puedo copiar una ami asociada a un billing product
+
+ROLES EN EC2 INSTANCE
+
+OJO un role solo puede ser atachado cuando lanze la imagen ,  si no le atacho ningun role al momento
+de subir una maquina , no puedo atachar nigun role despues.
+yo despues puedo cambiar la policy
+
+METADATA
+
+Para poder tener la informacion de metadata tengo que ingresar a la maquina y despues tengo que hacer lo siguiente:
+curl https://169.254.169.254/latest/meta-data/
+
+eso me muestra el total de las metadata, ahora si quiero saber cual es la ami-id ,tendria que hacer
+curl https://169.254.169.254/latest/meta-data/ami-id
+
+VOLUMENES EN AMAZON
+
+EBS VOLUME
+
+cuandoi Una maquina pierde el root volume cuando es terminada manualmente , por ende
+yo tengo que guardar la data de forma segura . entonces para eso me sirve un EBS volume, el cual
+es un network drive(ocupa network para comunicarse a la instancia. Esto significa que podria haber
+latencia) que yo puedo atachar a mis instancias mientras corren(tambien pueden ser desatachado
+de manera muy facil mientras la maquina corre).
+
+un ebs volume para us-east-1a no puede ser atachado en us-east-1b (para mover un volumen
+ebs primero necesito un snapshot de este).
+
+nosotros tenemos 2 tipos de ebs :
+    SSD backend: este tipo de ebs sirve para cargas de trabajo transaccional
+    donde van a exisitir muchas rafagas pequenas de lectura/escritura.
+
+    HDD backend: aca el rendimiento es mucho mas importanter que cualquier cosa
+
+QUE SIGNIFICA BURST?
+
+Bueno los volumenes tienen una especie de creditos de I/O, los cuales representan la capacidad
+del volumen para aumentar el valor de IOPS a un valor mucho mas grande del que dio inicialmente.
+estos creditos pueden ser guardados para cuando los volumenes ebs requieran mayot I/O.
+Por ejempo en las instancias GP2 , siempre aws me va fijar una cantidad especifica
+de IOPS pero tambien me va a fijar este burst que en el caso de gp2 puedo tener 
+3000 iops por 30 min. 
+
+****se paga por lo ocupado y la capacidad de provisionamiento es en GB y en IOPS.
+
+Casos de Uso EBS VOLUMES:
+
+- GP2(IO incrementa si el tamanio del disco incrementa):
+    este tipo de volumenes es recomendado para bastantes trabajos, ya que es 
+    barato pero el throughput no es malo (este tipo de disco esta basado EN IOPS)
+    es mucho mas barato que los otros y puede ser ocupado en system boot volumes,
+    virtual desktops y tiene baja latencia en interactive apps.
+    El tamanio va desde 1 GB a 16 TIB y puede manejar rafagas de datos de 3000 IOPS.
+    y el maximo numero de iops que soporta es 16.000 IOPS (3 IOPS Per GB, esto significa
+    que 5.334 GB son el maximo numero de iops ).
+    bajo un terabyte(1000GB) ,yo puedo tener una cantidad minima y maxima de IOPS, pero si subimos
+    de 1000 GB la CAPACIDAD DE IOps siempre va a ser 3000
+
+- IO1(IO puede incrementar independiente):
+    Este tipo de volumenes estan hehcos para aplicaciones criticas que requieren
+    una gra cantidad de IOPS (sobre los 16.000).
+    ideal para trabajos como : mongodb , cassandra , micrisoft sql server , oracle
+    en general podemos ver que este volumen es ideal para bases de datos.
+    El tamanio puede ir de 4 gb a 16 tb , los iops (pueden ser llamados PIOPS)
+    el minimo pueden ser  100 y el maximo 64.000 (paralas instancias nitro), si no
+    el numero maximo de iops (piops) serian 32.000. Por ejemplo si yo tengo un TB  de disco
+    por cada GB yo puedo tener hasta 50 iops , esto significa que si tengo 1gb mis iops 
+    son 50 , si tengo 10 gb mis iops son 500.
+
+- STI:
+    Ideal para streaming workloads , como por ejempo big data , data warehouse, etc
+    el tamanio minimo son 500 gb y el maximo 16 tb y la cantidad maxima de throughput es de
+    500 Mib/s 
+
+- SCI:
+    este tipo de disco es orientado para voluemens que guardan data la cual no es
+    accesada muy a menudo (similar a glacier)
+    se podria decir que el bajo costo es lo que importa .
+    no puede ser boot volume
+    el tamanio minimo son 500 gb y el maximo 16 tb y la cantidad maxima de throughput es de
+    250 Mib/s 
+
+en resumen las gp2 son baratas y el equilibrio entre precio y cantidad de iops es considerable
+pero las io1 son muuy caras e ideales para trabajos en donde necesito una lectura-escritura amplia
+
+SNAPSHOT EBS
+
+Los snapshots son incrementales , esto significa que cuando saco un nuevo backup yo solo
+incremento el backup y guardo los nuevos datos en un bucket s3 (ojo todos los snapshots van
+a un bucket s3 pero tu no puedes verlo directamente) algo similar a lo que ocurre en las imagenes
+docker (cuando creo una nueva imagen , yo solo anado los ultimos cambios no toda la imagen)
+
+no es necesario detach el volumen ebs cuando quiero hacerle un snapshot (pero es recomendado).
+como maximo puedo tener 100.000 snapshots.
+puedo copiar snapshots a lo largo de AZ O REGIONES  y puedo crear una ami desde un snapshot
+
+los ebs volumes pueden ser restaurados a partir de snapshots pero necesitan  ser pre configurados
+para que puedan funcionar buen (usando por ejemplo dd para asegurarme que voy a copiar toda
+la data de manera correcta)
+
+yo puedo crear un snapshot lifecycle policy con el fin de purgar snapshots viejos.
+
+EBS Encryption
+
+cuando encriptas tu volumen ebs tu tienes encriptada : la data dentro del volumen, 
+todo el movimiento de datos que hay entra la instancia y el volumen encriptado,
+todos los snapshot encriptados y todos los volumenes creados desde el snapshot son encriptados
+
+la encriptacion y desencriptacion es tranparente.
+la encriptacion es KMS (AES-256)
+
+ahora como podemos encriptar un EBS VOLUME ??
+- crear un ebs snapshot de un volumen
+- encriptar el ebs snapshot(escogiendo la opcion copy / encrypt this snapshot)
+- crear un nuevo volumen ebs desde un snapshot (el volumen tambien estara encriptado)
+- ahora puedes atachar el volumen encriptado a la instancia original
+
+EBS VS INSTANCE STORE
+
+En amazon el volumen efimero es mucho mas antiguo que el volumen ebs , por que el volumen efimero al momento
+de eliminar la instancia , se elimina de igual manera. en cambio un ebs yo puedo atacharlo en instancias , desatacharlo
+y hacer snapshots
+
+Los instance store(ephemeral0) son volumenes antoguos los cuales son efimeros , por que si se
+termina u para la ec2 instance este volumen va a morir a diferencia del ebs que puede
+perdurar(ojo el instance store es atachado fisicamente a la maquina a diferencia
+del EBS  que es un network drive)
+los pro de las instance store:
+- buen performance
+- buen buffer/cache(gran cantidad de IOPS por que es fisica)
+- es un disco fisco arachado a un servidor fisico .
+
+contras:
+- la data se pierda si esta instancia se termina 
+- no puedes hacer resize del instance store
+- backups son operados por el usuario
+- riesgo de perdidad de data si el HW falla
+
+este tipo de store es bueno para casos de uso como caches (data temporal).
+la gran diferencia entre estas instancia es que es un disco fisico y no un network disk.
+
+RAID VOLUMES Y snapshot
+
+En EBS es posible ocupar RAID Settings para poder configurar un arreglo
+de disco o subir la cantidad de iops en un conjunto de discos
+
+RAID = ARREGLO DE DISCOS REBUNDANTES
+
+teenemos disintos tipos de raid :
+
+raid 0 ---> divide los datos entre 2 o mas discos , tiene muy buen desempeño , pero no tiene rebundancia,
+            esto significa que si notros tenemos 4 discos el raid 0 va a escribir la data en esos 4 discos, si uno de los discos muere , cage con la data.
+            ocupando este tipo de raid nosotros podemos tener un gran disco con muchos IOPS
+            EJEMPLO: 2 ebs de 500GB con 4.000 IOPS , cada uno puede crear un raid de 1000gb con 8000 IOPS
+
+raid 1 ---> copia espejo, o sea aca tengo rebundancia o sea si un disco falla , puedo ocupar el otro.
+            en este tipo de arreglos tengo tolerancia a falla pero mas latencia ya que el network X2
+
+raid 5 ---> es muy bueno para lectura pero malo para escritura , no se recomienda poner un raid 5 en una instancia ec2 aws, este raid es bueno para el mundo real.
+
+raid 10 ---> comubinacion entre raid 0 y raid 1 , da rebundancia y buen desempeño.
+
+en aws por lo general si quiero crear un arreglo de disco este debe ser 0 o 10
+
+EFS
+
+La idea de tener un EFS es que todas las instancias puedan acceder a la misma informacion a travez
+de la red (ocuapdno un security group , ya que acordemonos bien que efs es un servidor nfs).
+EFS es 3 veces mas caro que gp2 , pero es altamente escalable , tiene alta disponibilidad y solo se paga por uso.
+
+- servicio de nfs que tiene AWS, ocupa el protocolo nfs v4.1 y un SG
+- compatible solo con linux ami's (NO CON WINDOWS)
+- usa encriptacion KMS
+- posix File system (linux)
+- SE Paga por uso no por capacity planning (escala automaticamente)
+- puede tener hasta 1000 NFS clients al mismo tiempo con 10GB de rendimiento (transferencia).
+- crece a petabytes automaticamente
+
+tenemos dos performance mode en efs:
+general purpose : latencia normal y para usos de casos como CMS, WEBSERVER.
+maxI/O : alta latencia y altamente paralelo especial para procesar grandes archivos 
+
+tambien tenemos distintos tipos de storage tier
+standard e infrequent access
+
+STORAGE TIERS
+Eso siginifica que despues de N dias puede mover la data y tacharla como infrecuente
+
+ACM (AMAZON CERTIFICATE MANAGER)
+
+Este servicio nos permite almacenar sertificados ssl, añadirselos a un (o unos) balanceadores. La idea
+de este servicio es manegar los certificaos de manera cross (por ejemplo si yo quiero actualizar un certificado
+vencido , lo puedo hacer desde este servicio)
+
+HA Y ESCALABILIDAD
+
+hay dos dipos de escalabilidad horizontal(elasticity) y vertical.
+HA usualmente va de la mano con escalabilidad horizontal y el objetivo es que si un datacenter
+maquina ,etc se cae ... no deje de dar servicio.
+HA puede ser pasivo por ejemplo RDS MULTI AZ (funciona al momento de que se cae un az sigue operando
+la base de datos en otro). En el fondo HA es cuando se corren las maquinas en distintos AZ.
+
+NETWORKING EN AWS
+
+el concepto base es el de vpc , la idea de una vpc es poder crear recursos dentro de ella,
+una vpc es una aislacion logica dentro de la nube , dentro de esta vpc yo puedo crear recursos 
+de red para luego crear instrancias ec2 o clusters ecs dentro de ellas.
+
+yo puedo asociar una vpc con otra mediante un peering, ojo yo puedo asociar una vpc on otra
+pero dentro de la asociacion de vpc no existe la transitividad o sea el peering de una a otra vpc
+
+las acl se dan a nivel de las subnet y los sg se dan a nivel de instancias ec2.
+
+al igual que oracle cloud nosotros , podemos asociar vpc's entre ellas a traves de un peering.
+la idea de asociar vpc es que las instancias puedan llegar entre ellas de manera como que si estuvieran
+en una red local.
+
+SQS.
+
+Servicio web que habilita cola de mensajes, por ejemplo yo puedo ocupar sqs en el siguiente caso:
+
+imagina subo una imagen y quiero alertar de la subida de esta imagen, en caso de ser asi ocupo el servicio
+sqs con el fin de encolar el mensaje para que despues sea procesado, si el servidor que emitio el mensaje esta
+caido , el mensaje seguira persistiendo en la cola.
+
+ocupando sqs , yo puedo ser capaz de desacoplar mi aplicacion web , dejando el componente de cola aparte.
+como maximo cada mensaje puedo pesar hasta 256 KB de texto en cualquier formato.
+la cola puede soportar multiples escritores y lectores.
+
+################ RDS AWS #################
+
+- RDS sta relacionado para database services
+- esto maneja una bd service que usa sql language query
+- las bases de daros que puedo ocupar son:
+    postgres
+    mysql
+    mariadb
+    oracle
+    microsoft sql server
+    auroraDB (aws relational database)
+
+estos servicios de rds son servicios manejados , lo cuals signigica:
+    - provisionamiento automatico , os patching
+    - bkp continuio
+    - monitoreo
+    - replicas para mejorar la performance
+    - multi AZ setup (disaster recovery)
+    - mantencio de windows upgrades.
+    - escalabilidad (horizontal/vertical)
+    - storage backed por ebs (gp2 o io1)
+
+a estas instancias tu no puedes hacerle ssh
+En estas instancias RDS los backups son activados automaticamente, los bkps automaticos
+pueden ser:
+    - full bkp diario.
+    - transaction logs que son bkpeados cada 5 min.
+      esto me permite restaurar a cualquier punto del tiempo y tener solo una diferencia de 5 min.
+    - 7 dias de retencion de bkps (puede ser incrementadoa a 35 dias).
+
+los db snapshopt deben ser gatillados por el usuario y la retencion de este bkp dura mas tiempo
+
+READ REPLICAS VS MULTI-AZ
+
+RDS READ REPLICAS PARA SCALABILIDAD
+
+nuestra base de datos puede escribir y leer datos desde y hacia nuestra aplicacion
+pero muchas veces nuestra bd no puede escalar y recibe demaciados requests.
+
+en caso de que nos ocurra algo asi nosotros podemos crear sobre 5 replicas
+las cuales solo son read replicas.
+estas replicas pueden estar en la misma AZ, cross AZ o en ninguna AZ.
+
+supongamos que tenemos nuestra RDS DB master y 2 replicas RDS READ REPLICA.
+la replicacion entre estas va a ser asyncrona entre la master y las read replicas instance
+esto significa que una read replica puede ser usada para reflejar los cambios al master
+instance en real time.
+
+CASOS DE USO RDS READ REPLICAS
+
+-en una database de produccion
+-tu puedes querer correr un reporting aplication, con el fin de hacer inteligencia de negocios
+por ejemplo , Entonces yo podria ir a leer la data hacia la replica sin necesidad
+de generar mas requests a la base de datos. aparte nosotros con nuestra aplicacion de BI , solo queremos
+consultar datos no escribir datos.
+-las replcas solo son usadas para leer datos (no para hacer otro tipo de statements
+sql como INSERT , UPDATE , DELETE)
+
+RDS READ REPLICA NETWORK COSTS \
+en aws tenemos un costo de red cuando la data va desde un AZ  a otro.
+PARA REDUCIR EL COSSTO nosotros tenemos que tener las read replicas en la misma AZ.
+
+RDS MULTI AZ(Disaster Recovery)
+
+este tipo de arquitectura tiene una master db y una db standby , la idea de esta arquitectura
+es tener un backup activo entonces cada dato ingresado en la master rds va a ser compiado 
+de manera sincrona a la base de datos standby.
+
+esto tiene un solo DNS name , entonces implica que la aplicaion tenga un failvoer automatico
+
+aca no hay intervenciones manuales por parte del usuario , aws conmuta automaticamente
+hacia la base de datos standby , ocupando el mismo dns name.
+
+las read replicas son seteadas como Multi AZ para disaster recovery
+
+RDS SECURITY AND Encryption
+
+ecnryptacion en reposo (at rest)
+
+nosotros podemos encriptar el master y las read replicas ocupando aws kms-aes-256 Encryption.
+la encriptacion tiene que ser definida en launch time.
+si el master no es encriptado las read replicas no pueden ser encriptadas.
+puedo tener una opcion para encriptar la base de datos se llama TDE (TRANSPARENT DATA ENCRYPTION) Disponible spara oracle y sql server.
+
+encryptacion en vuelo
+
+certificados ssl para encriptar la data hacia la RDS
+proveer opciones ssl para confiar en el certificado mientras se esta conectando a la DB
+
+puedo encriptar/desencriptar los rds backups de una base de datos.
+tambien puedo encriptar una rds database desencriptada de la siguiente forma:
+- creo un snapshopt de una base de datos sin encriptar
+- copio el snapshot y habilito la encriptacion para el snapshot
+- restore la base de datos con el snapshiot encriptado.
+- migro las aplicaciones a la nueva bd
+
+RDS SECURITY NETWORK IAM
+
+por lo generial las bases de dtos RDS son deployadas en subnet privadas y trabajan con 
+security groups (igual que las instancias ec2).
+
+las policies iam pueden ayudar a manejar las bases de datos rds.
+tambien puedo ocupar los username y password tradicionales para manejar mi DB
+puedo ocupar RDS IAM AUTHENTICATION para ser usado con el login dentro del rds mysql o postgresql
+
+RDS IAM AUTHENTICATION.
+
+- IAM Database authentication trabaja con mysql y posgre.
+- no necesitas un pasword ,solo necesitan un authentication token obtenido
+en IAM y RDS api Calls y este auth toker solo tiene un tiempo de vida de 15 minutos
+
+como funciona esto?
+simple le atacho un IAM role a una instancia ec2, este iam role va a ir al RDS service
+con el fin de obtener un auth token a travez de la llamada de una api.
+despues de que tengo el token yo voy a poner conectarme a la base de datos mysql por ejemplo
+y me aseguro que la conexion es encriptada cuando hago este proceso
+
+beneficions ? claro , el primer beneficio es que toda la data va a ser encriptada usando ssl.
+el segundo seria que se puede apalancar en los IAM ROLES y ec2 para integrar todo esto.
+
+AMAZON AURORA
+
+- amazon aurora no es open source(es propietario de amazon web services).
+- postgres y mysql ambas son soportadas por aurora db (esto significa que tus drivers
+que trabajan en aurora puede trabajar en postgres o mysql )
+- aurora aws esta optimizada para funcionar 100% en un entorno cloud aws. aurora tiene un
+mejor performance sobre Mysql en RDS (X5) y sobre 3X la performance en posgres en RDS
+- Aurora storage puede crecer de 10 GB a 64 TB
+- Aurora puede tener hasta 15 replicas mientras que mysql tiene 5 y el proceso de replicacion
+es mas rapido.
+- el failover en aurora es instanrtaneo. esto es HA nativo
+- aurora es mas caro que RDS (20% mas ) pero es mas eficiente.
+
+AURORA HA & READ SCALLING
+
+aurora puede ser capaz de crear 6 copias en 3 availability zones, y la combinacion es la
+siguiente:
+    - 4 copias de las 6 son necesarias escritura
+    - 3 copias de las 6 necesarias para lectura
+    - auto regeneracion la replicacion punto a punto.
+    - el storage es compartido en las 3 AZ
+
+una aurora instance puede leer/escribir (asume como master), si este falla automaticamente
+va a exisitir un failver para el master inferior a 30 segundos.
+tu puedes tener 1 master y 15 read replicas ,las cuales pueden tomar el papel del master
+siempre que el master falle.
+cabe destacar qu el storage es compartido entre las 3 az , eso permite que se repliquen
+se auto expandan y auto curen.
+
+AURORA DB CLUSTERS
+
+podemos autoexpandir este storage volume compartido desde los 10GB a los 64 TB, un cluster
+en aurora siempre va a tener un solo WRITTER ENDPOINT,  esto es una direccion dns que 
+la cual siempre el cliente va a ver , independiente de que el master pase a ser otra maquina.
+
+ahora las read replicas como comentamos pueden ser de 1 a 15, por ende las aplicaciones
+que quieran ocupar estas replicas lo pueden hacer a traves de un READDER ENDPOINT.
+este readder endpoint tiene un connection load balancing , esto significa que conecto todas
+las replicas al mismo endpoint.
+ojo cabe destacar que este balanceo ocurre a nivel de conexion.
+
+AURORA FEATURES
+
+-automatic failover
+-backupd y recovery
+-aislacion y seguridad
+- rutina de mantencion
+- parchado automatico con downtime zero
+- monitoreo avanzado
+- backtrack : restaurar data a cualquier punto del tiempo sin ocupar backups
+
+AURORA SECURITY
+
+- ocupa encryptacion KMS
+- similar a RDS ocupa los mismos engines
+- puedo ocupar iam authenticate token (mismo metodo que RDS).
+- no puedes ocupar SSH
+- encriptacion en vuelo usando SSL (el mismo proceso que MYSQL o POSTGRES)
+- TU ERES RESPONSABLE POR PRTEGER LA INSTANCIA CON SECURITY GROUPS
+
+AURORA SERVERLESS
+
+- instancia de base de datos automatica y autoscalling basado en el uso de aurora.
+- es muy bueno para infrecuentes , intermintentes o impredecibles cargas de trabajo.
+- no necesito capacity planning(ya que al ser serverless a medida que la intstancia
+necesita mas capacida de la anade).
+- se paga por segundo pero puede ser mas efectiva ya que pago solo por lo que ocupo
+
+
+como FUNCIONA ?
+
+nosotros tenemos un proxy fleet (manejado por aurora), que funciona como un load balancer
+desde el cliente hasta las distintas instancias amazon aurora. Bueno esto funciona a medida
+que tenemos mas carga de trabajo , se van a ir creando mas instancias y si baja la carga de trabajo
+se van a ir eliminando las aurora databases hasta llegar a 0.
+
+GLOBAL AURORA
+
+- aurora read replicas a travez de regiones
+
+AWS ELASTICACHE
+
+de las misma manera que nosotros tenemos RDS para manejar DATABASES , tambien tenemos ELASTICCACHE para manejar
+cache es bases de datos en memoria con una alta performance y baja latencia. Tambien ayuda a reducir la carga
+de las bases de datos cuando tenemos mucha carga de trabajo.
+los beneficios son:
+    construye tu aplicacion stateless
+    write scalling usando sharding
+    read scalling usando read replicas
+    multi az con capacidad de failover
+    aws se hacer cargo del patching , optimizacion , mantencion del os ,failover recovery y backups.
+
+Como puedo ocupar elastichcache en mi solucion architecture ?
+
+DB CACHE:
+
+cuando nosotros tenemos una aplicacion , esta se va a comunicar con rds , pero donde juega el papel elasticache
+nuestra aplicacion primeramente va a consultar a elasticcache ok si la respuesta de esa query es ok , va a devolver
+un cache hit en este caso la respuesta es su[er rapida y facil. pero si la data a la que eesta consultando
+no existe ... eso va a ser un cache miss, pero que ocurre con el cache miss???  nuestra aplicacion va a tener 
+que ir a buscar la respuesta a la base de datos y la aplicacion tiene que ser capaz de escribir
+esto en la cache.
+
+USER SESSION STORE:
+
+Otra posible forma que ocupar elasticcache puede ser , generando una aplicacion stateless.
+entonces el proceso seria el siguiente: el usuario se loguea en la aplicacion y esta va a ser capaz
+de escribir la session data en elasticcache.
+
+y si se loguea el usuario en otra instancia ec2 por ejemplo , la aplicacion va a conocer la session data de
+ese usuario y elasticcache va a devolver la sesion guardada en elasticcache.
+
+DIFERENCIA REDIS VS MEMCACHED
+
+redis:
+    - multi az con auto failover.
+    - READ REPLICAS que puede scalar para lectura y tienen HA
+    - backup and restore features.
+
+memcached:
+    - multi node para particionamiento de data (sharding)
+    - cache no persistente , esto significa que si el memcached se cae pierdes la data.
+    - no tiene backup y resture
+    - multi thereded architecture
+
+ELASTICCACHE CACHE SECURITY
+
+Todas las caches en elasticcache:
+    - soportan ssl encriptacion en vuelo
+    - no soportan iam authentication
+    - IAM POLICIES en elasticcache son solo usadas para AWS-API level security
+    REDIS AUTH:
+        Puedo setear un password/token cuando tu quieres crear un redis cluster
+        este es un nivel se seguridad extra para tu cache
+    MEMCACHED
+        soporta SASL autentication
+
+*** aws security token(STS) , es un servicio web que habilita el request temporalmente
+limitando privilegios 
+
+################ ROUTE 53 #################
+
+Maneja EL DNS que tiene aws , ahora que es un dns ?
+
+un dns es una coleccion de reglas y registros que ayudan al cliente a entender
+como llegar a un servidor a traves de su domain name
+
+Tipos de registros DNS:
+- A --> hostname a ipv4.
+- AAAA --> hostname a IPV6.
+- CNAME --> hostname to hostname.
+- Alias --> hostname a AWS resource.
+
+Como trabaja route 53 para un registro A?
+
+- El web browser va a generar un request a route 53 preguntando por un domino i.e: myapp.mydomain.com
+- route 53 va a devolver una ip(x.x.x.x)
+- luego el cliente va a enviar un request http a x.x.x.X
+- el servidor va a enviar un http response
+
+con route 53 tu puedes usar : dominio publicos(xxx.com) , dominios privados(xxx.internal).
+pero route53 tambien tiene un monton de caracteristicas como: load balancing , healt checks , routing policy.
+
+tu pagas 0.50 dollars al mes por hosted zone 
+
+DNS RECORDS TLL (time to live).
+
+es la forma en que los web browser van a cachear la respuesta que devolvio un DNS query
+y la razon por la que no se sobrecarga un servidor dns como funciona esto?
+
+tal como vimos arriba , el web browser va a mandar un dns request a route 53 (myapp.mydomain.con), este va a devolver
+una ip (i.e 32.45.67.85) cuale s un registro A. En la parte superior va a enviar un TTL(esto lo podemos
+configurar en la consola de aws pero por ejemplo un valor de 300 s).
+entonces el web browser va a cachear el DNS Request y el web browser automaticamente por  300s va a asumir
+que la direccion myapp.mydomain.com va a estar alojada en el servidor con ip 32.45.67.85 y no va a preguntar
+por este registro dns a route 53.
+entonces si la ip cambia , este registro puede ser actualizado pero solo despues de que el TTL expire.
+
+Puedo Tener un ttl alto (24 HR) cuando haya menos trafico dns.
+Puedo tener un ttl bajo (60 s) CUANdo tengo mucho trafico dns.
+
+ojo el ttl es obligatorio en cada registro dns y si yo ocupo dig puedo ver la cantidad de tiempo
+que me queda con el ttl
+
+CNAME VS ALIAS
+
+imagina que tienes el registro dns que arroja un balanceador de carga (i.e lbl-1234.us-east-2.elb.bla bla bla)
+pero nosotros queremos exponer ese balanceador de carga como www.myapp.mydomain.com , entonces en este caso
+especifico nosotros vamos a ocupar un registro CNAME para apuntar de un hostname a otro hostname cuando ocupo cname 
+yo no puedo apuntar al ROOT DOMAIN (mydomain.com)
+
+Los alias son muy similares a los CNAME, pero a diferencia de apuntar de un hostname a otro , aca yo apunto de un
+hostname a un recurso de aws, los alias trabajan tanto para root domain y no root domain. tambien Alias
+es libre de carga y tiene healt check nativo.
+
+ROUTING POLICY ROUTE 53
+
+    SIMPLE: este tipo de ruteo se ocupa cuando quiero redireccionar a un recurso simple, este ruteo no 
+    puede atachar healt checks.
+    Cabe destacar que yo puedo tener un dominio asociado a multiples direcciones IP en route 53 y hago 
+    un routing policy simple , como va a elegir a cual de los dos servidores (con distintas ip) enviarme ?
+    el browser siempre me va enviar primero a una ip( escoge una de las dos ips y me envia a una de esas ip's )
+    y cuando se acabe el TTL (300 por default), recien me envia a la otra ip.
+
+    WEIGHTED: en este tipo de politica yo le doy un porcentaje de requests a un endpoint especifico.
+    por ejemplo si tengo route 53 y tengo 3 instancias ec2 , con este tipo de politica puedo dar un peso 
+    especifico a cada instancia (la suma no tiene que ser 100 ), entonces route 53 va a enviar el 70% de los
+    requests a la instancia 1 , el 20% a la instancia 2 y el 10% a la instancia 3.
+    con este tipo de routing policiy yo puedo probar nuevos desarrollos (por ejemplo darle el 1% del trafico
+    a un nuevo desarrollo). Tambien es super util para dividir el trafico entre dos regiones.
+    puede ser asociados a healtchecks .
+    como funcionaria ? bueno como ya defini mis porcentajes de, este routing policy va a ir cambiando 
+    de servidores, cuando pase el ttl que declaramos.
+
+    LATENCY: unos de los mas usados es este y tal como su nombre lo dice aca va a redireccionar al 
+    servidor que tenga menor latencia, esto es super util cuando la latencia de la aplicacion es la prioridad
+    por ejemplo si tengo 2 servidores (en alemania e usa) y tengo muchos usuarios, los requests de los usuarios
+    que estan cerca de US a route 53 va a rutear dichos requests al server que esta en US y no al que esta en 
+    alemania ya que la latencia es menor .
+
+    HEALT CHECKS : al igual que los elb, route 53 tiene healtchecks lo que permite no enviar trafico
+    hacia ciertos servers que han estado unhealty (default value es 3), ahora si despues de X healt checks
+    pasaron sin singun problema (por default 3 ), diriamos que el estado es healty.
+    puedo tener http, https , tcp  healtchecks (sin SSL Verification) y puedo integrar estos healtchecks con cloudwatch
+
+    FAILOVER: imagina que tenemos instancias primarias e instancias secundarias(disaster revovery), ahora
+    route 53 va a asociar healt check a la instancia primaria y va checkear todo el tiempo , en caso de que
+    ocurra algun problema con el healtcheck , el va a ir a las instancias secundarias. (solo puedo tener una
+    primeria y una secundaria)
+
+    GEOLOCATION: Como su nombre lo dice aca a diferencia de la latencia (por que la latencia es por el
+    servidor que este mas proximo) yo voy a dividir el trafico por geolocalizacion, entonces en la routing
+    policy voy a anadir una localizacion geografica especifica a un registro dns.
+
+    MULTI VALUE: balanceo de trafico por dns 
+
+ROUTE 53 AS REGISTRAR 
+
+cuando compro un dominio a terceros tengo que registar este domino (y esto es distinto a dns ).
+
+CLASSIC SOLUTIONS ARCHITECTURE DISCUSSIONS
+
+STATELESS WEB APP
+
+Siempre es recomendable ocupar una infra en multi-AZ, por que si se pierde una zona de disp.
+la app puede ser resilente y migrarse a la otra az.
+
+los 5 pilares para una buena arquitectura son:
+costos , performance , confiabilidad , seguridad y excelencia operacional
+
+STATEFULL WEB APP
+
+para empezar si tenemos una webapp con login incluido, distribuida en muchas
+az(imagina una app distribuida en 3 az)tengo que tener session affinity o sticky sessions.
+
+ocuparemos las cockies lo cual puede ser un riesgo por que estas pueden ser alteradas
+tambien deben ser validadas y deben ser de menos de 4KB.
+
+las cockies toman un rol fundamental ya que la session se va a establecer via 
+cockies, entonces que podemos hacer para mantener la sesion. ocupariamos elasticcache
+por que el usuario se loguea en la aplicacion , se genera una sesion sticky y luego
+nosotros vamos a guardar el contenido del carrito de compra en elasticcache
+y el id de la sesion va a ser el id del elasticcache.
+
+ahora tambien vamos a necesitar guardar la data enuna base de datos para guardar
+los productos y los perfiles (una base de datos amazon RDS).
+podemos ocupar los read replicas de amazon con el fin de que tenga un solo master
+y a ese master yo pueda escribir y leer y las otras solo sirvan para leer
+por ejemplo leer los productos ,usuarios , etc...
+
+para que sea full survive disaster , tenemos elasticcache multi-az y rds multi-az
+
+en resumen tenemos:
+
+elasticcache PARA GUARDAR las sesiones y para atrapar la data de los rds 
+
+################ AWS ELASTICBEANSTALK #################
+
+los developer en aws tienen los siguientes problemas:
+- manejar infra
+- deploy del codigo.
+- configurar bases de datos , load balancers , etc. 
+- conocimiento de escalado.
+
+pero la gran mayoria de las arquitecturas ocupan ALB y ASG
+entonces los developers quieren solo correr su codigo, para esa solucion fue creada
+aws elastic beanstalk, con el fin de que los developers se dediquen a deploy
+del codigo.
+
+es super facil de ocupar, de configurar y tu solo pagas por las instancias que
+tienes arriba , no pagas por el servicio en si.
+
+con beanstalk tienes tres tipos de arquitectura:
+
+1.- solo una instancia (buena para dev).
+2.- LB y ASG (genial para pre prod app).
+3.- ASG (genial para non-web apps en produccion)
+
+y tiene tres tipos de componentes:
+- app
+- app version (por cada deploy asiga una version)
+- enviroment name (dev, test , prod)
+
+elasticbeanstalk tiene roll back con el fin de volver a una version antigua y estable 
+tambien tiene full control sobbre el ciclo de vida de los ambientes.
+
+################ BUCKET S3 #################
+
+Los buckets s3 son capaces de almacenar objetos(los buckets vendrian a ser
+el directorio y los objetos vendrian a ser archivos), igual que en google el bucket debe
+tener un nombre unico a nivel global.
+
+los buckets estan definidos a nivel regoional y tienen la siguiente convencion de nombres:
+ no uppercase, no underscore, lenght between 3 and 63 , not ip .
+
+los objetos en aws no pueden pesar mas de 5000 GB , en caso de ser mas grande debo ocupar multi part upload.
+estos objetos pueden tener metadata , que es una lista de valores key / value del sistema o de usuario.
+
+cuando un objeto es privado al 100% lo que hace aws es crear un link con credenciales aws autofirmadas
+
+VERSIONING
+
+Puede habilitarse a nivel de bucket level, esto significa que el objeto va a tener distintas versiones.
+el versionado en aws nunca se puede eliminar (o sea si ya lo activaste , no puedes desactivarlo).
+si suspendo el versionamiento no va a elimnar las versiones previas , solo va a asegurarse de que los proximos
+objetos que se suban no tengan versiones.
+
+lo ideal de tener versiones es la capacidad de roll back a una version previa. Ojo cualquier archivo 
+que no tiene niguna version antes de habilitar el control de versiones, tendra la version null y si se
+suspende el versionamiento en el buckeyt no elimina las versiones previas.
+
+S3 ENCRYPTION FOR OBJECTS
+
+Existen 4 metodos para encriptar objetos en amazon s3:
+
+ - sse-s3: puedo encotryctar los objetos s3 suando claves manegadas y administradas por aws.
+ - SSW-KMS: aprovecha el servicio de aws key managment service para administrar las claves encriptadas.
+ - SSE-C: cuando tu manejas tu propias llaves de encriptacion.
+ - client side encryption.
+
+SSE-S3(amazon s3 master-key):
+en este tipo fde cifrado las claves utilizadas para cifrar son manejadas por amazon s3.
+el objeto va a ser encriptado en el lado del servidor.
+tipo de encriptacion AES-256 (el header debe tener lo siguiente x-amz-server-side-encryption: AES256)
+
+
+como funciona?
+cargo un objeto ocupando http o https al bucket s3 aplicando en el header el encabezado de mas arriba
+luego amazon aplica su propia clave(una clave manejada por el mismo) y encripta la data en el bucket.
+con este tipo de encriptcion yo no tengo el control de la politica de rotacion de claves.
+
+SSE-KMS
+a diferencia del SSE-S3 las claves son manejadas por el servicio de amazon llamado KMS.
+la ventaja de ocupar kms es que el usuario controla y puede auditar
+es encriptado en el lado del servidor (el header debe tener lo siguiente x-amz-server-side-encryption: aws:kms)
+
+el proceso es el mismo que el anterior (SSE-S3), pero la gran diferencia es que yo tengo administrada
+las claves con el servicio kms(scuerdate que en este servicio yo las creo y luego las almaceno ) pero 
+me permite tener control total de la politica de rotacion de claves.
+
+SSE-C
+aca la encriptacion se da en el lado del servidor usando las claves que yo voy a proveer.
+debe ocupar https por que voy a enviar un secreto y la clave de encriptacion debe ser proveeida en los headers
+http siempre.
+En resumidad cuentas tu puedes querer que el cifrado ocurra en amazon s3 pero tu quieres administrar 
+las claves de cifrado y nunca almacenarlas en aws.
+
+Client side encryption
+
+el cliente encripta los datos antes de mandarlos.
+libreria por el lado del cliente como amazon s3 encryption client
+los clientes deben encriptar la data ellos mimos antes de enviar el objeto a s3
+el cliente debe desencriptar la data cuando reciben desde el s3
+el cliente administar por completo las claves y el ciclo de cifrado
+
+Encriptacion en transito 
+
+amazon s3 provee 2 tipos de endpoints (http / https), cuando ocupar http la data no es encriptada
+cuando ocupas https la data es encriptada en transito .
+sientete libre de ocupar el endpoint que quieras pero https es recomendado(muchos clienters ocupan este modo).
+la encriptacion en vuelo se llama tambien ssl/tls ya que ocupa esos certificados
+
+
+BUKET SECURITY
+
+User based
+    - iam policies
+      el usuario IAM puede acceder a estos recursos si su politica lo permite y no hay un DENY explicito
+
+resource based
+    - bucket policies
+        son politicas basadas en json.
+    - object access control list (ACL) - Finer Grain
+    - bucket access control list (ACL) - Less Common
+
+los buckets s3 ocupan policies para:
+dar acceso publico al bucket, frozar a que los objetos sean ecriptados al momento de subirlos obbjeto
+dar accesos a otra cuenta (cross account)
+S3 websites
+
+amazon s3 puede almacenar un website y es accesible con www
+if tu obtienes un 403 (forbidden) cuando quieres acceder al website , asegurate que el bucket POLICY
+permite leer.
+
+COORS (Cross origin requests)
+
+un origen es un esquema(protocolo), host(domain) y puerto.
+por ejemplo https://www.example.com , el esquema seria https, el host example.com y el puerto 443
+
+La idea de cors es el intercambio de recursos de origen cruzado, esto significa que queremos objetener
+recursos de un origen diferente. eL NAVEGADOR WEB ESTA IMPLEMENTADO con esta seguridad.
+los cors son header's
+
+en el fondo la idea de cors es poder ir a buscar recursos a distintos origenes, por ejemplo cuando hago una peticion
+a www.example.com desde el navegador , voy  a  sacar recursos desde www.example.com  pero este sitio web , necesita
+sacar imagenes de otro lado (www.otro.com), entonces aca el navegador debe hacer una solicitud de verificacion
+previa  y esta verificacion va a prguntar al origen cruzado si se le permite hacer una solicitud al respecto.
+
+en caso de si , el cross origin (www.otro.com) va a decirle si , y puedes ocupar estos verbos http en mi
+
+
+S3 CORS
+
+si un cleinte quiere hacer cross origin , nosotros necesitamos habilitar los cors headers , permitiendo un
+origen especificando el nombre o dejando * para todos los origenes.
+
+ojo los cors deben habiltarse en el segundo bucket , no en el bucket de origen.
+
+S3 CONSISTENCY MODEL
+
+- despues de hacer un put exitoso (que me retorne un codigo 200 ), puedo hacer un get (codigo 200 igual).
+esto es verdadero excepto si  nosotros hizimos un GET previo al PUT (o sea quisimos verificar el objeto antes de hacer el put).
+a esto nosotros llamamos eventualidad consistente
+
+- los eventos consistentes los obtienes para los DELETES Y PUTS. por ejemplo si tu lees un obbjeto y despues
+lo actualizas nosotros podriamos obtener la version anterior(la unica forma de tener el nuevo objeto seria esperar a que se actualize).
+
+- tambien tenemos eventualidad consistente cuando eliminar un objeto , puedes recuperar en un tiempo muy corto.
+o SEA si tu hacer un delete (y te retorna un 200) y en seguida haces un GET, lo mas probable es que sea un 200.
+
